@@ -4,7 +4,7 @@ import {
   ChevronRight, ChevronDown, TrendingUp, TrendingDown,
   ArrowDownToLine, ArrowUpFromLine, Sun, Moon,
   Bell, Search, Settings, CheckCircle, XCircle,
-  AlertCircle, Plus, Edit2, Trash2, LogOut, Lock, User as UserIcon
+  AlertCircle, Plus, Edit2, Trash2, LogOut, Lock, User as UserIcon, FileSpreadsheet
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -17,7 +17,8 @@ type View =
   | "dashboard"
   | "hr-employees" | "hr-attendance" | "hr-leave" | "hr-payroll"
   | "inv-categories" | "inv-products" | "inv-stock" | "inv-eod"
-  | "acc-accounts" | "acc-reports";
+  | "acc-accounts" | "acc-reports"
+  | "sys-users";
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ const API_BASE = "http://localhost:5043";
 interface User {
   fullName: string;
   role: string;
+  dbId?: number;
 }
 
 interface ApiContextType {
@@ -177,7 +179,22 @@ function ApiProvider({ children }: { children: React.ReactNode }) {
       }
       const data = await res.json();
       setToken(data.token);
-      const userData = { fullName: data.fullName, role: data.role };
+      
+      // Lấy thêm UserId từ API current user để liên kết CreatedBy/ApproverId
+      let dbId = 0;
+      try {
+        const currentRes = await fetch(`${API_BASE}/api/auth/current`, {
+          headers: { "Authorization": `Bearer ${data.token}` }
+        });
+        if (currentRes.ok) {
+          const currentData = await currentRes.json();
+          dbId = currentData.userId;
+        }
+      } catch (err) {
+        console.error("Failed to fetch current user id:", err);
+      }
+
+      const userData = { fullName: data.fullName, role: data.role, dbId };
       setUser(userData);
       localStorage.setItem("erp_token", data.token);
       localStorage.setItem("erp_user", JSON.stringify(userData));
@@ -209,6 +226,7 @@ function ApiProvider({ children }: { children: React.ReactNode }) {
 
       let mappedEmployees: any[] = [];
       let mappedProducts: any[] = [];
+      let catMap: Record<string, any> = {};
 
       // 1. Employees (OWNER, ACCOUNTANT, STORE_MANAGER, WAREHOUSE_STAFF)
       if (isOwner || isAccountant || isManager || isWarehouse) {
@@ -323,9 +341,8 @@ function ApiProvider({ children }: { children: React.ReactNode }) {
         const dbProducts = await apiFetch("/api/inventory/products");
         const dbStock = await apiFetch("/api/inventory/stock-balance");
 
-        const categoryDict: Record<string, any> = {};
         dbCategories.forEach((cat: any) => {
-          categoryDict[cat.code] = {
+          catMap[cat.code] = {
             dbId: cat.id,
             id: cat.code,
             name: cat.name,
@@ -337,7 +354,7 @@ function ApiProvider({ children }: { children: React.ReactNode }) {
 
         mappedProducts = dbProducts.map((p: any) => {
           const bal = dbStock.find((s: any) => s.productId === p.id);
-          const catName = categoryDict[p.categoryCode]?.name || p.categoryCode;
+          const catName = catMap[p.categoryCode]?.name || p.categoryCode;
           return {
             id: p.sku,
             dbId: p.id,
@@ -357,12 +374,12 @@ function ApiProvider({ children }: { children: React.ReactNode }) {
 
         mappedProducts.forEach((p: any) => {
           const catCode = p.categoryCode;
-          if (categoryDict[catCode]) {
-            categoryDict[catCode].products += 1;
-            categoryDict[catCode].value += p.stock * p.buyPrice;
+          if (catMap[catCode]) {
+            catMap[catCode].products += 1;
+            catMap[catCode].value += p.stock * p.buyPrice;
           }
         });
-        setCategories(Object.values(categoryDict));
+        setCategories(Object.values(catMap));
       } catch (err) {
         console.error("Failed to fetch products or stock:", err);
       }
@@ -546,6 +563,12 @@ const navModules = [
       { id: "acc-reports", label: "Báo cáo tài chính" },
     ],
   },
+  {
+    id: "system", label: "Hệ thống", icon: Settings,
+    views: [
+      { id: "sys-users", label: "Quản lý tài khoản" }
+    ],
+  },
 ];
 
 // ─── Shared Primitives ────────────────────────────────────────────────────────
@@ -647,7 +670,7 @@ function Sidebar({ activeView, onNavigate }: { activeView: View; onNavigate: (v:
   const S = useS();
   const { user } = useApi();
   const role = user?.role;
-  const [expanded, setExpanded] = useState<string[]>(["hr", "inv", "acc"]);
+  const [expanded, setExpanded] = useState<string[]>(["hr", "inv", "acc", "system"]);
 
   const toggle = (id: string) =>
     setExpanded(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -689,6 +712,9 @@ function Sidebar({ activeView, onNavigate }: { activeView: View; onNavigate: (v:
       }
       if (mod.id === "acc") {
         return role === "OWNER" || role === "ACCOUNTANT";
+      }
+      if (v.id === "sys-users") {
+        return role === "OWNER";
       }
       return false;
     });
@@ -793,13 +819,14 @@ const viewTitles: Record<View, string> = {
   "inv-eod": "Kết thúc ngày — 20/06/2025",
   "acc-accounts": "Hệ thống tài khoản",
   "acc-reports": "Báo cáo tài chính",
+  "sys-users": "Quản lý tài khoản",
 };
 
-function TopBar({ activeView, isDark, onToggleDark }: { activeView: View; isDark: boolean; onToggleDark: () => void }) {
+function TopBar({ activeView, isDark, onToggleDark, onOpenChangePass }: { activeView: View; isDark: boolean; onToggleDark: () => void; onOpenChangePass: () => void }) {
   const S = useS();
   const { user, logout } = useApi();
   const roleLabels: Record<string, string> = {
-    OWNER: "Chủ",
+    OWNER: "Chủ siêu thị",
     STORE_MANAGER: "Quản lý",
     WAREHOUSE_STAFF: "Thủ kho",
     CASHIER: "Thu ngân",
@@ -852,8 +879,16 @@ function TopBar({ activeView, isDark, onToggleDark }: { activeView: View; isDark
               </span>
             </div>
             <button
+              onClick={onOpenChangePass}
+              className="p-1.5 rounded-lg hover:bg-slate-700/10 dark:hover:bg-slate-300/10 transition-colors duration-200 cursor-pointer"
+              style={{ color: S.muted }}
+              title="Đổi mật khẩu tài khoản"
+            >
+              <Lock size={13} />
+            </button>
+            <button
               onClick={logout}
-              className="p-1.5 rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-colors duration-200"
+              className="p-1.5 rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-colors duration-200 cursor-pointer"
               style={{ color: S.muted }}
               title="Đăng xuất"
             >
@@ -2554,18 +2589,193 @@ function InvProducts() {
 
 function InvStock() {
   const S = useS();
-  const { stockTransactions } = useApi();
+  const { stockTransactions, products, apiFetch, refreshData, user } = useApi();
   const [tab, setTab] = useState<"all" | "in" | "out">("all");
   const filtered = tab === "all" ? stockTransactions : stockTransactions.filter(t => t.type === tab);
   const totalIn = stockTransactions.filter(t => t.type === "in").reduce((s, t) => s + t.total, 0);
   const totalOut = stockTransactions.filter(t => t.type === "out").reduce((s, t) => s + t.total, 0);
 
+  // In/Out Modals State
+  const [showInModal, setShowInModal] = useState(false);
+  const [showOutModal, setShowOutModal] = useState(false);
+
+  // Nhập kho states
+  const [inSupplier, setInSupplier] = useState("Nhà cung cấp Minh Anh");
+  const [inLines, setInLines] = useState<any[]>([]);
+  const [selectedProdId, setSelectedProdId] = useState<number>(products[0]?.dbId || 0);
+  const [inQty, setInQty] = useState<number>(1);
+  const [inPrice, setInPrice] = useState<number>(0);
+  const [inExpiry, setInExpiry] = useState<string>("");
+
+  // Xuất kho states
+  const [outProdId, setOutProdId] = useState<number>(products[0]?.dbId || 0);
+  const [outQty, setOutQty] = useState<number>(1);
+  const [outReason, setOutReason] = useState("Xuất hủy hàng hỏng");
+
+  const exportToExcel = () => {
+    if (filtered.length === 0) {
+      alert("Không có dữ liệu giao dịch kho để xuất!");
+      return;
+    }
+
+    const headers = ["Mã Phiếu", "Loại", "Ngày Giờ", "Sản Phẩm", "Số Lượng", "ĐVT", "Đơn Giá", "Thành Tiền", "Đối Tác", "Nhân Viên"];
+    
+    const rows = filtered.map(t => [
+      t.id,
+      t.type === "in" ? "Nhập kho" : "Xuất kho",
+      `${t.date} ${t.time}`,
+      t.product,
+      t.qty,
+      t.unit,
+      t.price,
+      t.total,
+      t.supplier || "—",
+      t.staff
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(val => {
+        const str = String(val ?? "").replace(/"/g, '""');
+        return str.includes(",") || str.includes("\n") || str.includes('"') ? `"${str}"` : str;
+      }).join(","))
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Bao_cao_nhap_xuat_kho_${dateStr}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Tự cập nhật đơn giá khi chọn sản phẩm
+  useEffect(() => {
+    const prod = products.find(p => p.dbId === selectedProdId);
+    if (prod) setInPrice(prod.buyPrice || 0);
+  }, [selectedProdId, products]);
+
+  useEffect(() => {
+    if (products.length > 0) {
+      if (!selectedProdId) setSelectedProdId(products[0].dbId);
+      
+      const availableOut = products.filter(p => p.stock > 0);
+      if (availableOut.length > 0) {
+        if (!outProdId || !availableOut.some(p => p.dbId === outProdId)) {
+          setOutProdId(availableOut[0].dbId);
+        }
+      } else {
+        setOutProdId(0);
+      }
+    }
+  }, [products]);
+
+  const addInLine = () => {
+    if (!selectedProdId) return;
+    const prod = products.find(p => p.dbId === selectedProdId);
+    if (!prod) return;
+    
+    if (inLines.some(l => l.productId === selectedProdId)) {
+      alert("Sản phẩm này đã được thêm vào danh sách nhập.");
+      return;
+    }
+
+    setInLines([
+      ...inLines,
+      {
+        productId: selectedProdId,
+        productName: prod.name,
+        quantity: inQty,
+        unitCost: inPrice,
+        expiryDate: inExpiry || null
+      }
+    ]);
+    // Reset inputs
+    setInQty(1);
+    setInExpiry("");
+  };
+
+  const removeInLine = (index: number) => {
+    setInLines(inLines.filter((_, i) => i !== index));
+  };
+
+  const handleInSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inLines.length === 0) {
+      alert("Vui lòng thêm ít nhất một sản phẩm vào phiếu nhập!");
+      return;
+    }
+
+    try {
+      // 1. Tạo phiếu nhập kho
+      const receipt = await apiFetch("/api/inventory/receipts", {
+        method: "POST",
+        body: JSON.stringify({
+          SupplierName: inSupplier,
+          CreatedBy: user?.dbId || 1,
+          Lines: inLines.map(l => ({
+            ProductId: l.productId,
+            Quantity: l.quantity,
+            UnitCost: l.unitCost,
+            ExpiryDate: l.expiryDate
+          }))
+        })
+      });
+
+      // 2. Tự động duyệt luôn phiếu nhập kho vừa tạo để cập nhật tồn kho tức thì
+      if (receipt && receipt.id) {
+        await apiFetch(`/api/inventory/receipts/${receipt.id}/approve`, {
+          method: "PATCH",
+          body: JSON.stringify({ ApproverId: user?.dbId || 1 })
+        });
+      }
+
+      alert("Lập phiếu và nhập kho thành công!");
+      setShowInModal(false);
+      setInLines([]);
+      refreshData();
+    } catch (err: any) {
+      alert("Lỗi nhập kho: " + err.message);
+    }
+  };
+
+  const handleOutSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!outProdId) return;
+
+    try {
+      await apiFetch("/api/inventory/issues", {
+        method: "POST",
+        body: JSON.stringify({
+          ProductId: outProdId,
+          Quantity: outQty,
+          Sale: false,
+          CreatedBy: user?.dbId || 1,
+          Reason: outReason
+        })
+      });
+
+      alert("Lập phiếu xuất kho thành công!");
+      setShowOutModal(false);
+      setOutQty(1);
+      setOutReason("Xuất hủy hàng hỏng");
+      refreshData();
+    } catch (err: any) {
+      alert("Lỗi xuất kho: " + err.message);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-4">
-        <KpiCard label="Nhập kho hôm nay" value={fmtM(totalIn) + " tr"} sub={stockTransactions.filter(t => t.type === "in").length + " phiếu nhập"} trend="up" />
-        <KpiCard label="Xuất kho hôm nay" value={fmtM(totalOut) + " tr"} sub={stockTransactions.filter(t => t.type === "out").length + " phiếu xuất"} trend="neutral" />
-        <KpiCard label="Chênh lệch" value={fmtM(totalIn - totalOut) + " tr"} sub="Nhập trừ xuất" trend="up" />
+        <KpiCard label="Nhập kho hôm nay" value={fmtM(totalIn)} sub={stockTransactions.filter(t => t.type === "in").length + " phiếu nhập"} trend="up" />
+        <KpiCard label="Xuất kho hôm nay" value={fmtM(totalOut)} sub={stockTransactions.filter(t => t.type === "out").length + " phiếu xuất"} trend="neutral" />
+        <KpiCard label="Chênh lệch" value={fmtM(totalIn - totalOut)} sub="Nhập trừ xuất" trend="up" />
       </div>
       <div className="flex items-center justify-between">
         <div className="flex gap-0.5 p-1 rounded-lg transition-colors duration-200" style={{ background: S.card, border: `1px solid ${S.border}` }}>
@@ -2578,11 +2788,16 @@ function InvStock() {
           ))}
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer"
+            style={{ background: S.card, border: `1px solid ${S.border}`, color: S.blue }}
+            title="Xuất danh sách đang hiển thị ra Excel">
+            <FileSpreadsheet size={13} />Xuất Excel
+          </button>
+          <button onClick={() => setShowInModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer"
             style={{ background: S.card, border: `1px solid ${S.border}`, color: S.sub }}>
             <ArrowDownToLine size={13} />Phiếu nhập
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: S.green, color: "#fff" }}>
+          <button onClick={() => setShowOutModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90" style={{ background: S.green }}>
             <ArrowUpFromLine size={13} />Phiếu xuất
           </button>
         </div>
@@ -2590,28 +2805,144 @@ function InvStock() {
       <TableWrap>
         <thead><tr>{["Phiếu", "Loại", "Ngày giờ", "Sản phẩm", "SL", "ĐVT", "Đơn giá", "Thành tiền", "Đối tác", "NV"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
         <tbody>
-          {filtered.map((t, i) => (
-            <Tr key={t.id} last={i === filtered.length - 1}>
-              <Td mono>{t.id}</Td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-xs font-semibold"
-                  style={t.type === "in" ? { background: `${S.green}18`, color: S.green } : { background: `${S.amber}18`, color: S.amber }}>
-                  {t.type === "in" ? <ArrowDownToLine size={10} /> : <ArrowUpFromLine size={10} />}
-                  {t.type === "in" ? "Nhập" : "Xuất"}
-                </div>
-              </td>
-              <Td mono>{t.date} {t.time}</Td>
-              <td className="px-4 py-3 text-sm font-medium max-w-40 truncate" style={{ color: S.text }}>{t.product}</td>
-              <td className="px-4 py-3 text-sm font-mono font-bold" style={{ color: S.text }}>{t.qty}</td>
-              <Td>{t.unit}</Td>
-              <Td mono>{(t.price / 1000).toFixed(0)}k</Td>
-              <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.text }}>{(t.total / 1000000).toFixed(3)}tr</td>
-              <Td>{t.supplier}</Td>
-              <Td>{t.staff}</Td>
-            </Tr>
-          ))}
+          {filtered.length === 0 ? (
+            <tr>
+              <td colSpan={10} className="text-center py-6 text-xs" style={{ color: S.muted }}>Không tìm thấy giao dịch kho nào.</td>
+            </tr>
+          ) : (
+            filtered.map((t, i) => (
+              <Tr key={t.id} last={i === filtered.length - 1}>
+                <Td mono>{t.id}</Td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-xs font-semibold"
+                    style={t.type === "in" ? { background: `${S.green}18`, color: S.green } : { background: `${S.amber}18`, color: S.amber }}>
+                    {t.type === "in" ? <ArrowDownToLine size={10} /> : <ArrowUpFromLine size={10} />}
+                    {t.type === "in" ? "Nhập" : "Xuất"}
+                  </div>
+                </td>
+                <Td mono>{t.date} {t.time}</Td>
+                <td className="px-4 py-3 text-sm font-medium max-w-40 truncate" style={{ color: S.text }}>{t.product}</td>
+                <td className="px-4 py-3 text-sm font-mono font-bold" style={{ color: S.text }}>{t.qty}</td>
+                <Td>{t.unit}</Td>
+                <Td mono>{(t.price / 1000).toFixed(0)}k</Td>
+                <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.text }}>{(t.total / 1000000).toFixed(3)}tr</td>
+                <Td>{t.supplier}</Td>
+                <Td>{t.staff}</Td>
+              </Tr>
+            ))
+          )}
         </tbody>
       </TableWrap>
+
+      {/* MODAL NHẬP KHO */}
+      {showInModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="rounded-xl w-full max-w-lg p-6 shadow-xl border overflow-hidden max-h-[90vh] flex flex-col" style={{ background: S.card, borderColor: S.border }}>
+            <h3 className="text-lg font-bold mb-4" style={{ color: S.text }}>Lập phiếu nhập kho</h3>
+            <form onSubmit={handleInSubmit} className="space-y-4 overflow-y-auto flex-1 pr-1">
+              <div>
+                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Nhà cung cấp</label>
+                <input type="text" required value={inSupplier} onChange={e => setInSupplier(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+              </div>
+              <div className="p-3 rounded-lg border space-y-3" style={{ borderColor: S.border, background: `${S.bg}40` }}>
+                <div className="text-xs font-bold" style={{ color: S.text }}>Thêm sản phẩm nhập</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Sản phẩm</label>
+                    <select value={selectedProdId} onChange={e => setSelectedProdId(Number(e.target.value))}
+                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }}>
+                      {products.map(p => <option key={p.dbId} value={p.dbId}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Số lượng</label>
+                    <input type="number" min="1" value={inQty} onChange={e => setInQty(Number(e.target.value))}
+                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Đơn giá mua (VNĐ)</label>
+                    <input type="number" min="0" value={inPrice} onChange={e => setInPrice(Number(e.target.value))}
+                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ngày hết hạn (HSD)</label>
+                    <input type="date" value={inExpiry} onChange={e => setInExpiry(e.target.value)}
+                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                  </div>
+                </div>
+                <button type="button" onClick={addInLine} className="w-full py-1.5 rounded text-xs font-semibold text-white cursor-pointer" style={{ background: S.blue }}>
+                  Thêm vào phiếu
+                </button>
+              </div>
+
+              {/* Danh sách dòng tạm */}
+              <div className="space-y-1.5">
+                <div className="text-xs font-bold" style={{ color: S.sub }}>Chi tiết phiếu nhập ({inLines.length})</div>
+                <div className="max-h-36 overflow-y-auto border rounded-lg p-2 space-y-1" style={{ borderColor: S.border }}>
+                  {inLines.length === 0 ? (
+                    <div className="text-center text-xs py-3" style={{ color: S.muted }}>Chưa có sản phẩm nào được thêm.</div>
+                  ) : (
+                    inLines.map((l, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs p-1.5 rounded" style={{ background: S.bg }}>
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="font-medium truncate" style={{ color: S.text }}>{l.productName}</div>
+                          <div className="text-[10px]" style={{ color: S.muted }}>
+                            SL: {l.quantity} × {fmt(l.unitCost)} {l.expiryDate ? `| HSD: ${l.expiryDate}` : ""}
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => removeInLine(idx)} className="text-red-500 font-bold px-1.5 py-0.5 hover:bg-red-500/10 rounded cursor-pointer">✕</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2" style={{ borderTop: `1px solid ${S.border}` }}>
+                <button type="button" onClick={() => { setShowInModal(false); setInLines([]); }}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold border cursor-pointer" style={{ borderColor: S.border, color: S.sub }}>Hủy</button>
+                <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ background: S.green }}>Lập phiếu & Nhập kho</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL XUẤT KHO */}
+      {showOutModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="rounded-xl w-full max-w-sm p-6 shadow-xl border" style={{ background: S.card, borderColor: S.border }}>
+            <h3 className="text-lg font-bold mb-4" style={{ color: S.text }}>Lập phiếu xuất kho</h3>
+            <form onSubmit={handleOutSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Sản phẩm xuất</label>
+                <select value={outProdId} onChange={e => setOutProdId(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }}>
+                  {products.filter(p => p.stock > 0).map(p => <option key={p.dbId} value={p.dbId}>{p.name} (Tồn: {p.stock})</option>)}
+                  {products.filter(p => p.stock > 0).length === 0 && <option value={0}>Không có sản phẩm nào còn hàng</option>}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Số lượng xuất</label>
+                <input type="number" required min="1" value={outQty} onChange={e => setOutQty(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+              </div>
+              <div>
+                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Lý do xuất kho</label>
+                <input type="text" required value={outReason} onChange={e => setOutReason(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+              </div>
+              <div className="flex justify-end gap-2 pt-2" style={{ borderTop: `1px solid ${S.border}` }}>
+                <button type="button" onClick={() => setShowOutModal(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold border cursor-pointer" style={{ borderColor: S.border, color: S.sub }}>Hủy</button>
+                <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ background: S.green }}>Lập phiếu & Xuất kho</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2620,13 +2951,77 @@ function InvStock() {
 
 function InvEOD() {
   const S = useS();
-  const { products, dashboardData } = useApi();
-  const lowStockItems = products.filter(p => p.stock <= p.minStock).map(p => p.name);
-  const d = {
-    ...eodData,
-    totalSales: dashboardData.revenueToday,
-    lowStock: lowStockItems.slice(0, 3),
+  const { products, apiFetch, refreshData, user } = useApi();
+  const [loading, setLoading] = useState(false);
+  const [todaySales, setTodaySales] = useState(0);
+  const [todayTxCount, setTodayTxCount] = useState(0);
+  const [expiringList, setExpiringList] = useState<any[]>([]);
+
+  // Lấy ngày hiện tại
+  const today = new Date();
+  const todayStr = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+  const todayIso = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+
+  const [isClosed, setIsClosed] = useState(() => {
+    return localStorage.getItem(`eod_closed_${todayIso}`) === "true";
+  });
+
+  const lowStockItems = products.filter(p => p.stock <= p.minStock);
+
+  const fetchEodData = async () => {
+    setLoading(true);
+    try {
+      const revRes = await apiFetch(`/api/accounting/reports/daily-revenue?date=${todayIso}`);
+      if (revRes) {
+        setTodaySales(revRes.totalRevenue || 0);
+        setTodayTxCount(revRes.transactionCount || 0);
+      }
+      
+      const expRes = await apiFetch("/api/inventory/expiry-alerts?days=30");
+      if (expRes) {
+        setExpiringList(expRes);
+      }
+    } catch (err) {
+      console.error("Failed to fetch EOD revenue or expiry data:", err);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchEodData();
+  }, []);
+
+  const handleCloseDay = async () => {
+    if (window.confirm("Bạn có chắc chắn muốn chốt ngày hôm nay và đóng kỳ kế toán hiện tại không?")) {
+      setLoading(true);
+      try {
+        const periods = await apiFetch("/api/accounting/periods");
+        const activePeriod = periods?.find((p: any) => !p.isClosed);
+
+        if (activePeriod) {
+          await apiFetch(`/api/accounting/periods/${activePeriod.id}/close`, {
+            method: "POST"
+          });
+        }
+
+        localStorage.setItem(`eod_closed_${todayIso}`, "true");
+        setIsClosed(true);
+        alert("Chốt sổ kết thúc ngày thành công! Dữ liệu kế toán và kho hàng đã được đồng bộ khóa sổ.");
+        refreshData();
+      } catch (err: any) {
+        alert("Lỗi chốt sổ ngày: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const openingCash = 5000000;
+  const cashPayments = todaySales; 
+  const cardPayments = 0;
+  const closingCash = openingCash + cashPayments;
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3 p-4 rounded-xl transition-colors duration-200" style={{ background: S.card, border: `1px solid ${S.green}30` }}>
@@ -2634,53 +3029,77 @@ function InvEOD() {
           <Sun size={20} style={{ color: S.green }} />
         </div>
         <div>
-          <div className="text-sm font-bold" style={{ color: S.text }}>Báo cáo kết thúc ngày {d.date}</div>
-          <div className="text-xs mt-0.5" style={{ color: S.muted }}>Chốt lúc 22:00 — Người thực hiện: Vũ Thị Phương</div>
+          <div className="text-sm font-bold" style={{ color: S.text }}>Báo cáo kết thúc ngày {todayStr}</div>
+          <div className="text-xs mt-0.5" style={{ color: S.muted }}>Chốt lúc 22:00 — Người thực hiện: {user?.fullName || "Chủ cửa hàng"}</div>
         </div>
-        <div className="ml-auto"><Badge label="Đã chốt" color={S.green} bg={`${S.green}18`} /></div>
+        <div className="ml-auto flex items-center gap-2">
+          {isClosed ? (
+            <Badge label="Đã chốt ngày" color={S.green} bg={`${S.green}18`} />
+          ) : (
+            <>
+              <Badge label="Chưa chốt sổ" color={S.amber} bg={`${S.amber}18`} />
+              <button disabled={loading} onClick={handleCloseDay} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity cursor-pointer" style={{ background: S.green }}>
+                {loading ? "Đang xử lý..." : "Chốt sổ & Đóng kỳ"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        <KpiCard label="Tổng doanh thu" value={fmtM(d.totalSales) + " tr"} sub={d.transactions + " giao dịch"} trend="up" accent={S.green} />
-        <KpiCard label="Hoàn trả" value={fmtM(d.totalRefund) + " tr"} sub="Doanh thu thuần đã trừ" trend="down" />
-        <KpiCard label="Tiền mặt thu" value={fmtM(d.cashPayments) + " tr"} sub={fmtM(d.cardPayments) + " tr qua thẻ"} trend="neutral" />
-        <KpiCard label="Tồn quỹ cuối ngày" value={fmtM(d.closingCash) + " tr"} sub={"Mở đầu: " + fmtM(d.openingCash) + " tr"} trend="up" />
+        <KpiCard label="Tổng doanh thu" value={fmt(todaySales)} sub={todayTxCount + " giao dịch"} trend="up" accent={S.green} />
+        <KpiCard label="Hoàn trả" value="0 đ" sub="Không có giao dịch trả hàng" trend="neutral" />
+        <KpiCard label="Tiền mặt thu" value={fmt(cashPayments)} sub="0 đ thanh toán thẻ" trend="neutral" />
+        <KpiCard label="Tồn quỹ cuối ngày" value={fmt(closingCash)} sub={"Mở đầu: " + fmt(openingCash)} trend="up" />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-xl p-4 transition-colors duration-200" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <div className="text-sm font-semibold mb-3" style={{ color: S.text }}>Hàng sắp hết tồn kho</div>
-          {d.lowStock.map((item, i) => (
-            <div key={i} className="flex items-center gap-3 py-2.5" style={{ borderBottom: i < d.lowStock.length - 1 ? `1px solid ${S.border}` : "none" }}>
-              <AlertCircle size={14} style={{ color: S.amber }} />
-              <span className="text-sm flex-1" style={{ color: S.text }}>{item}</span>
-              <button className="text-xs px-2.5 py-1 rounded-lg font-medium" style={{ background: `${S.green}18`, color: S.green }}>Đặt hàng</button>
-            </div>
-          ))}
+          <div className="text-sm font-semibold mb-3" style={{ color: S.text }}>Hàng sắp hết tồn kho ({lowStockItems.length})</div>
+          {lowStockItems.length === 0 ? (
+            <div className="text-xs py-4 text-center" style={{ color: S.muted }}>Không có hàng hóa nào dưới mức an toàn.</div>
+          ) : (
+            lowStockItems.slice(0, 5).map((item, i) => (
+              <div key={i} className="flex items-center gap-3 py-2.5" style={{ borderBottom: i < Math.min(lowStockItems.length, 5) - 1 ? `1px solid ${S.border}` : "none" }}>
+                <AlertCircle size={14} style={{ color: S.amber }} />
+                <span className="text-xs flex-1 truncate" style={{ color: S.text }}>{item.name}</span>
+                <span className="text-xs font-mono font-bold mr-2" style={{ color: S.red }}>Tồn: {item.stock} {item.unit}</span>
+              </div>
+            ))
+          )}
         </div>
         <div className="rounded-xl p-4 transition-colors duration-200" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          <div className="text-sm font-semibold mb-3" style={{ color: S.text }}>Hàng sắp hết hạn sử dụng</div>
-          {d.expiring.map((item, i) => (
-            <div key={i} className="flex items-center gap-3 py-2.5" style={{ borderBottom: i < d.expiring.length - 1 ? `1px solid ${S.border}` : "none" }}>
-              <AlertCircle size={14} style={{ color: S.red }} />
-              <span className="text-sm flex-1" style={{ color: S.text }}>{item}</span>
-              <button className="text-xs px-2.5 py-1 rounded-lg font-medium" style={{ background: `${S.red}18`, color: S.red }}>Xử lý</button>
-            </div>
-          ))}
+          <div className="text-sm font-semibold mb-3" style={{ color: S.text }}>Hàng sắp/đã hết hạn sử dụng ({expiringList.length})</div>
+          {expiringList.length === 0 ? (
+            <div className="text-xs py-4 text-center" style={{ color: S.muted }}>Không có cảnh báo hạn sử dụng.</div>
+          ) : (
+            expiringList.slice(0, 5).map((item, i) => {
+              const expDate = item.expiryDate ? item.expiryDate.split("-").reverse().join("/") : "";
+              return (
+                <div key={i} className="flex items-center gap-3 py-2.5" style={{ borderBottom: i < Math.min(expiringList.length, 5) - 1 ? `1px solid ${S.border}` : "none" }}>
+                  <AlertCircle size={14} style={{ color: item.isExpired ? S.red : S.amber }} />
+                  <span className="text-xs flex-1 truncate" style={{ color: S.text }}>{item.name}</span>
+                  <span className="text-xs font-bold font-mono" style={{ color: item.isExpired ? S.red : S.amber }}>
+                    {item.isExpired ? `Hết Hạn (${expDate})` : `HSD: ${expDate}`}
+                  </span>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
       <div className="rounded-xl p-4 transition-colors duration-200" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-        <div className="text-sm font-semibold mb-3" style={{ color: S.text }}>Tổng kết bán hàng</div>
+        <div className="text-sm font-semibold mb-3" style={{ color: S.text }}>Tổng kết bán hàng hôm nay ({todayStr})</div>
         <div className="grid grid-cols-3 gap-3">
           {[
-            ["Tổng số hóa đơn", d.transactions + " hóa đơn"],
-            ["Tổng mặt hàng bán ra", d.items + " sản phẩm"],
-            ["Doanh thu bình quân/HĐ", fmt(Math.round((d.totalSales - d.totalRefund) / d.transactions))],
-          ].map(([label, value]) => (
-            <div key={label} className="p-3 rounded-lg" style={{ background: S.isDark ? "#0D1220" : "#F1F5F9" }}>
-              <div className="text-xs mb-1" style={{ color: S.muted }}>{label}</div>
-              <div className="text-sm font-mono font-bold" style={{ color: S.text }}>{value}</div>
+            ["Tổng số hóa đơn", todayTxCount + " hóa đơn"],
+            ["Doanh thu bình quân/HĐ", todayTxCount > 0 ? fmt(Math.round(todaySales / todayTxCount)) : "0 đ"],
+            ["Ngày làm việc", todayStr],
+          ].map(([lbl, val]) => (
+            <div key={lbl} className="p-3 rounded-lg border transition-colors duration-200" style={{ borderColor: S.border, background: S.bg }}>
+              <div className="text-[10px] uppercase font-bold" style={{ color: S.muted }}>{lbl}</div>
+              <div className="text-sm font-bold mt-1" style={{ color: S.text }}>{val}</div>
             </div>
           ))}
         </div>
@@ -2961,25 +3380,522 @@ function LoginScreen() {
           </button>
         </form>
 
-        <div className="mt-8 pt-6 relative" style={{ borderTop: "1px solid #1F2937" }}>
-          <span className="text-[10px] uppercase font-bold tracking-widest block mb-3 text-center" style={{ color: "#64748B" }}>Tài khoản mẫu (Mật khẩu: 123456)</span>
-          <div className="grid grid-cols-2 gap-2">
-            {presets.map(p => (
-              <button
-                key={p.user}
-                type="button"
-                onClick={() => handlePreset(p.user)}
-                disabled={loading}
-                className="px-3 py-2 rounded-lg text-left text-xs font-medium transition-all duration-150 border hover:bg-gray-800/40 flex flex-col justify-center gap-0.5 cursor-pointer"
-                style={{ borderColor: "#1F2937", background: "rgba(17, 24, 39, 0.4)" }}
-              >
-                <span className="font-semibold text-white">{p.label}</span>
-                <span className="font-mono text-[10px]" style={{ color: p.color }}>{p.user}</span>
-              </button>
-            ))}
+      </div>
+    </div>
+  );
+}
+
+function SysUsers() {
+  const S = useS();
+  const { apiFetch, user } = useApi();
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState(""); // "" (All), "true", "false"
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+
+  // Form State
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("EMPLOYEE");
+  const [isActive, setIsActive] = useState(true);
+  const [reason, setReason] = useState("");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Delete State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteUser, setDeleteUser] = useState<any>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      let url = "/api/users";
+      const params = [];
+      if (search.trim()) params.push(`keyword=${encodeURIComponent(search.trim())}`);
+      if (roleFilter) params.push(`role=${roleFilter}`);
+      if (activeFilter) params.push(`isActive=${activeFilter}`);
+      if (params.length > 0) url += `?${params.join("&")}`;
+      const data = await apiFetch(url);
+      setUsers(data || []);
+    } catch (err: any) {
+      setError(err.message || "Không thể tải danh sách tài khoản.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, [search, roleFilter, activeFilter]);
+
+  const openAdd = () => {
+    setModalMode("add");
+    setSelectedUser(null);
+    setUsername("");
+    setFullName("");
+    setEmail("");
+    setPhone("");
+    setRole("EMPLOYEE");
+    setIsActive(true);
+    setReason("");
+    setPassword("");
+    setError("");
+    setShowModal(true);
+  };
+
+  const openEdit = (u: any) => {
+    setModalMode("edit");
+    setSelectedUser(u);
+    setUsername(u.username);
+    setFullName(u.fullName);
+    setEmail(u.email);
+    setPhone(u.phoneNumber || "");
+    setRole(u.role);
+    setIsActive(u.isActive);
+    setReason("");
+    setPassword("");
+    setError("");
+    setShowModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() && modalMode === "add") {
+      setError("Vui lòng nhập tên đăng nhập.");
+      return;
+    }
+    if (modalMode === "add" && !password.trim()) {
+      setError("Vui lòng nhập mật khẩu.");
+      return;
+    }
+    if (!fullName.trim()) {
+      setError("Vui lòng nhập họ và tên.");
+      return;
+    }
+    if (!email.trim()) {
+      setError("Vui lòng nhập email.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      if (modalMode === "add") {
+        await apiFetch("/api/users", {
+          method: "POST",
+          body: JSON.stringify({
+            Username: username.trim(),
+            FullName: fullName.trim(),
+            Email: email.trim(),
+            PhoneNumber: phone.trim() || null,
+            Role: role,
+            IsActive: isActive,
+            Password: password.trim()
+          })
+        });
+      } else {
+        await apiFetch(`/api/users/${selectedUser.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            FullName: fullName.trim(),
+            Email: email.trim(),
+            PhoneNumber: phone.trim() || null,
+            Role: role,
+            IsActive: isActive,
+            Version: selectedUser.version,
+            Reason: reason.trim() || "Cập nhật thông tin tài khoản",
+            Password: password.trim() || null
+          })
+        });
+      }
+      setShowModal(false);
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || "Đã xảy ra lỗi khi lưu thông tin.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openDelete = (u: any) => {
+    setDeleteUser(u);
+    setDeleteReason("");
+    setError("");
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deleteReason.trim()) {
+      setError("Vui lòng nhập lý do xóa.");
+      return;
+    }
+    setDeleting(true);
+    setError("");
+    try {
+      await apiFetch(`/api/users/${deleteUser.id}?reason=${encodeURIComponent(deleteReason.trim())}&version=${deleteUser.version}`, {
+        method: "DELETE"
+      });
+      setShowDeleteModal(false);
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || "Đã xảy ra lỗi khi xóa tài khoản.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const roleMap: Record<string, { label: string; color: string; bg: string }> = {
+    OWNER:           { label: "Chủ siêu thị",       color: S.red,    bg: `${S.red}18` },
+    STORE_MANAGER:   { label: "Quản lý cửa hàng",   color: S.blue,   bg: `${S.blue}18` },
+    WAREHOUSE_STAFF: { label: "Thủ kho",            color: S.purple, bg: `${S.purple}18` },
+    CASHIER:         { label: "Thu ngân",           color: S.green,  bg: `${S.green}18` },
+    SALES_STAFF:     { label: "Nhân viên bán hàng", color: S.amber,  bg: `${S.amber}18` },
+    ACCOUNTANT:      { label: "Kế toán viên",       color: "#EC4899",bg: "#EC489918" },
+    EMPLOYEE:        { label: "Nhân viên",          color: S.muted,  bg: `${S.muted}18` }
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader action={<AddBtn label="Thêm tài khoản" onClick={openAdd} />}>
+        <div className="flex gap-2 flex-wrap items-center">
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Tìm theo username, tên, email..."
+            className="text-xs px-3 py-1.5 rounded-lg outline-none w-60 font-semibold"
+            style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }} />
+          
+          <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+            className="text-xs px-3 py-1.5 rounded-lg outline-none font-semibold cursor-pointer"
+            style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }}>
+            <option value="">Tất cả vai trò</option>
+            <option value="OWNER">Chủ siêu thị</option>
+            <option value="STORE_MANAGER">Quản lý cửa hàng</option>
+            <option value="WAREHOUSE_STAFF">Thủ kho</option>
+            <option value="CASHIER">Thu ngân</option>
+            <option value="SALES_STAFF">Nhân viên bán hàng</option>
+            <option value="ACCOUNTANT">Kế toán viên</option>
+            <option value="EMPLOYEE">Nhân viên</option>
+          </select>
+
+          <select value={activeFilter} onChange={e => setActiveFilter(e.target.value)}
+            className="text-xs px-3 py-1.5 rounded-lg outline-none font-semibold cursor-pointer"
+            style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="true">Đang hoạt động</option>
+            <option value="false">Đang bị khóa</option>
+          </select>
+        </div>
+      </SectionHeader>
+
+      <TableWrap>
+        <thead>
+          <tr>
+            {["Tên đăng nhập", "Họ và tên", "Vai trò", "Email", "Số điện thoại", "Trạng thái", "Thao tác"].map(h => <Th key={h}>{h}</Th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <tr>
+              <td colSpan={7} className="text-center py-6 text-xs" style={{ color: S.muted }}>Đang tải dữ liệu...</td>
+            </tr>
+          ) : users.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="text-center py-6 text-xs" style={{ color: S.muted }}>Không tìm thấy tài khoản nào.</td>
+            </tr>
+          ) : (
+            users.map((u, i) => {
+              const rCfg = roleMap[u.role] || { label: u.role, color: S.muted, bg: `${S.muted}18` };
+              return (
+                <Tr key={u.id} last={i === users.length - 1}>
+                  <td className="px-4 py-3 text-xs font-mono font-bold" style={{ color: S.green }}>{u.username}</td>
+                  <td className="px-4 py-3 text-xs font-medium" style={{ color: S.text }}>{u.fullName}</td>
+                  <td className="px-4 py-3"><Badge label={rCfg.label} color={rCfg.color} bg={rCfg.bg} /></td>
+                  <td className="px-4 py-3 text-xs" style={{ color: S.sub }}>{u.email}</td>
+                  <Td mono>{u.phoneNumber || "—"}</Td>
+                  <td className="px-4 py-3">
+                    {u.isActive ? (
+                      <Badge label="Hoạt động" color={S.green} bg={`${S.green}18`} />
+                    ) : (
+                      <Badge label="Khóa" color={S.red} bg={`${S.red}18`} />
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => openEdit(u)} className="p-1 rounded hover:bg-slate-700/10 dark:hover:bg-slate-300/10 transition-colors cursor-pointer" style={{ color: S.blue }}>
+                        <Edit2 size={12} />
+                      </button>
+                      <button onClick={() => openDelete(u)} className="p-1 rounded hover:bg-slate-700/10 dark:hover:bg-slate-300/10 transition-colors cursor-pointer" style={{ color: S.red }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </td>
+                </Tr>
+              );
+            })
+          )}
+        </tbody>
+      </TableWrap>
+
+      {/* Modal Add/Edit */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl p-6 border shadow-2xl transition-all duration-200 animate-in zoom-in-95 duration-150"
+            style={{ background: S.card, borderColor: S.border }}>
+            <h4 className="text-sm font-bold mb-4" style={{ color: S.text }}>
+              {modalMode === "add" ? "Thêm tài khoản mới" : "Cập nhật tài khoản"}
+            </h4>
+            
+            <form onSubmit={handleSave} className="space-y-4">
+              {error && (
+                <div className="p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: `${S.red}18`, color: S.red }}>
+                  <AlertCircle size={14} />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Tên đăng nhập</label>
+                  <input value={username} onChange={e => setUsername(e.target.value)} disabled={modalMode === "edit"}
+                    placeholder="Nhập username..."
+                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Họ và tên</label>
+                  <input value={fullName} onChange={e => setFullName(e.target.value)}
+                    placeholder="Nhập họ tên..."
+                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Email</label>
+                  <input value={email} onChange={e => setEmail(e.target.value)} type="email"
+                    placeholder="name@erpmini.vn"
+                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Số điện thoại</label>
+                  <input value={phone} onChange={e => setPhone(e.target.value)}
+                    placeholder="Nhập SĐT..."
+                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Vai trò</label>
+                  <select value={role} onChange={e => setRole(e.target.value)}
+                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all shadow-sm"
+                    style={{ background: S.bg, borderColor: S.border, color: S.text }}>
+                    <option value="OWNER">Chủ siêu thị (OWNER)</option>
+                    <option value="STORE_MANAGER">Quản lý (STORE_MANAGER)</option>
+                    <option value="WAREHOUSE_STAFF">Thủ kho (WAREHOUSE_STAFF)</option>
+                    <option value="CASHIER">Thu ngân (CASHIER)</option>
+                    <option value="SALES_STAFF">Nhân viên bán hàng (SALES_STAFF)</option>
+                    <option value="ACCOUNTANT">Kế toán viên (ACCOUNTANT)</option>
+                    <option value="EMPLOYEE">Nhân viên khác (EMPLOYEE)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Trạng thái</label>
+                  <div className="flex items-center gap-2 h-[34px]">
+                    <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} id="isActiveCheckbox" className="w-4 h-4 cursor-pointer" />
+                    <label htmlFor="isActiveCheckbox" className="text-xs font-semibold select-none cursor-pointer" style={{ color: S.text }}>Cho phép đăng nhập</label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>
+                  {modalMode === "add" ? "Mật khẩu *" : "Mật khẩu mới (bỏ trống nếu giữ nguyên)"}
+                </label>
+                <input value={password} onChange={e => setPassword(e.target.value)} type="password"
+                  placeholder={modalMode === "add" ? "Nhập mật khẩu..." : "Nhập mật khẩu mới..."}
+                  className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                  style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+              </div>
+
+              {modalMode === "edit" && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Lý do cập nhật <span className="text-red-500">*</span></label>
+                  <input value={reason} onChange={e => setReason(e.target.value)} required
+                    placeholder="Nhập lý do cập nhật..."
+                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer"
+                  style={{ background: S.border, color: S.text }}>Hủy</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
+                  style={{ background: S.green, opacity: saving ? 0.7 : 1 }}>{saving ? "Đang lưu..." : "Lưu"}</button>
+              </div>
+            </form>
           </div>
         </div>
+      )}
 
+      {/* Modal Delete */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-2xl p-6 border shadow-2xl transition-all duration-200 animate-in zoom-in-95 duration-150"
+            style={{ background: S.card, borderColor: S.border }}>
+            <h4 className="text-sm font-bold mb-2" style={{ color: S.text }}>Xác nhận xóa tài khoản</h4>
+            
+            <form onSubmit={handleDelete} className="space-y-4">
+              {error && (
+                <div className="p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: `${S.red}18`, color: S.red }}>
+                  <AlertCircle size={14} />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <p className="text-xs font-medium" style={{ color: S.text }}>
+                Bạn có chắc chắn muốn xóa tài khoản <strong style={{ color: S.red }}>{deleteUser?.username}</strong> ({deleteUser?.fullName})?
+              </p>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Lý do xóa <span className="text-red-500">*</span></label>
+                <input value={deleteReason} onChange={e => setDeleteReason(e.target.value)} required
+                  placeholder="Nhập lý do xóa bắt buộc..."
+                  className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                  style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowDeleteModal(false)} className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer"
+                  style={{ background: S.border, color: S.text }}>Hủy</button>
+                <button type="submit" disabled={deleting} className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
+                  style={{ background: S.red, opacity: deleting ? 0.7 : 1 }}>{deleting ? "Đang xóa..." : "Xóa"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const S = useS();
+  const { apiFetch } = useApi();
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setError("Vui lòng điền đầy đủ các trường.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Mật khẩu mới và xác nhận mật khẩu không khớp.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError("Mật khẩu mới phải từ 6 ký tự trở lên.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await apiFetch("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          OldPassword: oldPassword,
+          NewPassword: newPassword
+        })
+      });
+      setSuccess("Đổi mật khẩu thành công!");
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (err: any) {
+      setError(err.message || "Đổi mật khẩu thất bại.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-sm rounded-2xl p-6 border shadow-2xl transition-all duration-200 animate-in zoom-in-95 duration-150"
+        style={{ background: S.card, borderColor: S.border }}>
+        <h4 className="text-sm font-bold mb-4" style={{ color: S.text }}>Đổi mật khẩu tài khoản</h4>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: `${S.red}18`, color: S.red }}>
+              <AlertCircle size={14} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div className="p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: `${S.green}18`, color: S.green }}>
+              <CheckCircle size={14} />
+              <span>{success}</span>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Mật khẩu hiện tại</label>
+            <input value={oldPassword} onChange={e => setOldPassword(e.target.value)} type="password" required
+              placeholder="Nhập mật khẩu cũ..."
+              className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+              style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Mật khẩu mới</label>
+            <input value={newPassword} onChange={e => setNewPassword(e.target.value)} type="password" required
+              placeholder="Nhập mật khẩu mới..."
+              className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+              style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Xác nhận mật khẩu mới</label>
+            <input value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} type="password" required
+              placeholder="Xác nhận mật khẩu mới..."
+              className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+              style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer"
+              style={{ background: S.border, color: S.text }}>Hủy</button>
+            <button type="submit" disabled={saving || success !== ""} className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
+              style={{ background: S.green, opacity: (saving || success !== "") ? 0.7 : 1 }}>
+              {saving ? "Đang lưu..." : "Đổi mật khẩu"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -2987,8 +3903,9 @@ function LoginScreen() {
 
 function AppContent() {
   const { token, user } = useApi();
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   const [activeView, setActiveView] = useState<View>("dashboard");
+  const [showChangePassModal, setShowChangePassModal] = useState(false);
   const S = createS(isDark);
 
   if (!token) {
@@ -3014,6 +3931,9 @@ function AppContent() {
       if (v === "acc-accounts" || v === "acc-reports") {
         return role === "OWNER" || role === "ACCOUNTANT";
       }
+      if (v === "sys-users") {
+        return role === "OWNER";
+      }
       return false;
     };
 
@@ -3037,6 +3957,7 @@ function AppContent() {
       case "inv-eod":        return <InvEOD />;
       case "acc-accounts":   return <AccAccounts />;
       case "acc-reports":    return <AccReports />;
+      case "sys-users":      return <SysUsers />;
     }
   };
 
@@ -3045,12 +3966,15 @@ function AppContent() {
       <div className="flex h-screen overflow-hidden transition-colors duration-200" style={{ background: S.bg }}>
         <Sidebar activeView={activeView} onNavigate={setActiveView} />
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <TopBar activeView={activeView} isDark={isDark} onToggleDark={() => setIsDark(d => !d)} />
+          <TopBar activeView={activeView} isDark={isDark} onToggleDark={() => setIsDark(d => !d)} onOpenChangePass={() => setShowChangePassModal(true)} />
           <main className="flex-1 overflow-y-auto p-5 transition-colors duration-200" style={{ background: S.bg }}>
             {renderView()}
           </main>
         </div>
       </div>
+      {showChangePassModal && (
+        <ChangePasswordModal onClose={() => setShowChangePassModal(false)} />
+      )}
     </ThemeCtx.Provider>
   );
 }
