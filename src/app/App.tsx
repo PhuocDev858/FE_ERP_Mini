@@ -2277,14 +2277,19 @@ function InvCategories() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-2xl p-6 border shadow-2xl transition-all duration-200 animate-in zoom-in-95 duration-150"
-               style={{ background: S.card, borderColor: S.border }}>
-            <h4 className="text-sm font-bold mb-3" style={{ color: S.text }}>
-              {modalMode === "add" ? "Thêm nhóm hàng mới" : "Sửa thông tin nhóm hàng"}
-            </h4>
+        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
+             onClick={() => setShowModal(false)}>
+          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+               style={{ background: S.card, borderColor: S.border }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+              <h4 className="text-base font-bold" style={{ color: S.text }}>
+                {modalMode === "add" ? "Thêm nhóm hàng mới" : "Sửa thông tin nhóm hàng"}
+              </h4>
+              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
+            </div>
             
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mã nhóm hàng</label>
                 <input 
@@ -2312,11 +2317,11 @@ function InvCategories() {
 
               {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
                 <button 
                   type="button" 
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
+                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
                   style={{ background: S.border, color: S.text }}
                   disabled={saving}
                 >
@@ -2324,7 +2329,7 @@ function InvCategories() {
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
                   style={{ background: S.green }}
                   disabled={saving}
                 >
@@ -3036,10 +3041,17 @@ function InvStock() {
 
       {/* MODAL NHẬP KHO */}
       {showInModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="rounded-xl w-full max-w-lg p-6 shadow-xl border overflow-hidden max-h-[90vh] flex flex-col" style={{ background: S.card, borderColor: S.border }}>
-            <h3 className="text-lg font-bold mb-4" style={{ color: S.text }}>Lập phiếu nhập kho</h3>
-            <form onSubmit={handleInSubmit} className="space-y-4 overflow-y-auto flex-1 pr-1">
+        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
+             onClick={() => { setShowInModal(false); setInLines([]); }}>
+          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+               style={{ background: S.card, borderColor: S.border }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+              <h3 className="text-base font-bold" style={{ color: S.text }}>Lập phiếu nhập kho</h3>
+              <button type="button" onClick={() => { setShowInModal(false); setInLines([]); }} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
+            </div>
+            
+            <form onSubmit={handleInSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
               <div>
                 <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Nhà cung cấp</label>
                 <input type="text" required value={inSupplier} onChange={e => setInSupplier(e.target.value)}
@@ -3128,10 +3140,10 @@ function InvStock() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2" style={{ borderTop: `1px solid ${S.border}` }}>
+              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
                 <button type="button" onClick={() => { setShowInModal(false); setInLines([]); }}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold border cursor-pointer" style={{ borderColor: S.border, color: S.sub }}>Hủy</button>
-                <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ background: S.green }}>Lập phiếu & Nhập kho</button>
+                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85" style={{ background: S.border, color: S.text }}>Hủy</button>
+                <button type="submit" className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85" style={{ background: S.green }}>Lập phiếu & Nhập kho</button>
               </div>
             </form>
           </div>
@@ -3140,10 +3152,17 @@ function InvStock() {
 
       {/* MODAL XUẤT KHO */}
       {showOutModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="rounded-xl w-full max-w-sm p-6 shadow-xl border" style={{ background: S.card, borderColor: S.border }}>
-            <h3 className="text-lg font-bold mb-4" style={{ color: S.text }}>Lập phiếu xuất kho</h3>
-            <form onSubmit={handleOutSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
+             onClick={() => setShowOutModal(false)}>
+          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+               style={{ background: S.card, borderColor: S.border }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+              <h3 className="text-base font-bold" style={{ color: S.text }}>Lập phiếu xuất kho</h3>
+              <button type="button" onClick={() => setShowOutModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
+            </div>
+            
+            <form onSubmit={handleOutSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
               <div>
                 <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Sản phẩm xuất</label>
                 <select value={outProdId} onChange={e => setOutProdId(Number(e.target.value))}
@@ -3162,10 +3181,11 @@ function InvStock() {
                 <input type="text" required value={outReason} onChange={e => setOutReason(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
               </div>
-              <div className="flex justify-end gap-2 pt-2" style={{ borderTop: `1px solid ${S.border}` }}>
+              
+              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
                 <button type="button" onClick={() => setShowOutModal(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold border cursor-pointer" style={{ borderColor: S.border, color: S.sub }}>Hủy</button>
-                <button type="submit" className="px-4 py-2 rounded-lg text-xs font-semibold text-white cursor-pointer" style={{ background: S.green }}>Lập phiếu & Xuất kho</button>
+                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer" style={{ background: S.border, color: S.text }}>Hủy</button>
+                <button type="submit" className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer" style={{ background: S.green }}>Lập phiếu & Xuất kho</button>
               </div>
             </form>
           </div>
@@ -3877,14 +3897,19 @@ function SysUsers() {
 
       {/* Modal Add/Edit */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl p-6 border shadow-2xl transition-all duration-200 animate-in zoom-in-95 duration-150"
-            style={{ background: S.card, borderColor: S.border }}>
-            <h4 className="text-sm font-bold mb-4" style={{ color: S.text }}>
-              {modalMode === "add" ? "Thêm tài khoản mới" : "Cập nhật tài khoản"}
-            </h4>
+        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
+             onClick={() => setShowModal(false)}>
+          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+               style={{ background: S.card, borderColor: S.border }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+              <h4 className="text-base font-bold" style={{ color: S.text }}>
+                {modalMode === "add" ? "Thêm tài khoản mới" : "Cập nhật tài khoản"}
+              </h4>
+              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
+            </div>
             
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
               {error && (
                 <div className="p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: `${S.red}18`, color: S.red }}>
                   <AlertCircle size={14} />
@@ -3970,10 +3995,10 @@ function SysUsers() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer"
+              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+                <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer"
                   style={{ background: S.border, color: S.text }}>Hủy</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
+                <button type="submit" disabled={saving} className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
                   style={{ background: S.green, opacity: saving ? 0.7 : 1 }}>{saving ? "Đang lưu..." : "Lưu"}</button>
               </div>
             </form>
