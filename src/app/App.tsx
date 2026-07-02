@@ -18,7 +18,7 @@ type View =
   | "hr-employees" | "hr-attendance" | "hr-leave" | "hr-payroll"
   | "inv-categories" | "inv-products" | "inv-stock" | "inv-eod"
   | "acc-accounts" | "acc-reports"
-  | "sys-users";
+  | "sys-users" | "sys-audit";
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
@@ -250,13 +250,18 @@ function ApiProvider({ children }: { children: React.ReactNode }) {
                   e.position === "Accountant" ? "Kế toán viên" : e.position,
             rawPosition: e.position,
             phone: e.nationalId || "Chưa cập nhật",
+            nationalId: e.nationalId || "",
+            bankAccountNumber: e.bankAccountNumber || "",
+            bankName: e.bankName || "",
+            annualLeaveBalance: e.annualLeaveBalance ?? 12,
             status: e.status === "ACTIVE" ? "active" : "inactive",
             rawStatus: e.status,
             salary: e.baseSalary,
             mealAllowance: e.mealAllowance || 0,
             attendanceAllowance: e.attendanceAllowance || 0,
             joined: e.hireDate ? e.hireDate.split("-").reverse().join("/") : "",
-            rawJoined: e.hireDate
+            rawJoined: e.hireDate,
+            rawTerminationDate: e.terminationDate || ""
           }));
           setEmployees(mappedEmployees);
         } catch (err) {
@@ -367,7 +372,11 @@ function ApiProvider({ children }: { children: React.ReactNode }) {
             stock: bal ? bal.quantity : 0,
             minStock: p.minStockLevel,
             buyPrice: p.averageCost,
-            sellPrice: p.salePrice
+            sellPrice: p.salePrice,
+            imageUrl: p.imageUrl || "",
+            brand: p.brand || "",
+            supplier: p.supplier || "",
+            isFresh: p.isFresh || false
           };
         });
         setProducts(mappedProducts);
@@ -566,7 +575,8 @@ const navModules = [
   {
     id: "system", label: "Hệ thống", icon: Settings,
     views: [
-      { id: "sys-users", label: "Quản lý tài khoản" }
+      { id: "sys-users", label: "Quản lý tài khoản" },
+      { id: "sys-audit", label: "Nhật ký hệ thống" }
     ],
   },
 ];
@@ -715,6 +725,9 @@ function Sidebar({ activeView, onNavigate }: { activeView: View; onNavigate: (v:
       }
       if (v.id === "sys-users") {
         return role === "OWNER";
+      }
+      if (v.id === "sys-audit") {
+        return role === "OWNER" || role === "ACCOUNTANT";
       }
       return false;
     });
@@ -1030,6 +1043,14 @@ function HREmployees() {
   const [empStatus, setEmpStatus] = useState("ACTIVE");
   const [editReason, setEditReason] = useState("");
 
+  // Các trường thông tin nhân sự mở rộng
+  const [nationalId, setNationalId] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [annualLeaveBalance, setAnnualLeaveBalance] = useState<number>(12);
+  const [hireDate, setHireDate] = useState("");
+  const [terminationDate, setTerminationDate] = useState("");
+
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -1045,6 +1066,12 @@ function HREmployees() {
     setAttendanceAllowance(500000);
     setEmpStatus("ACTIVE");
     setEditReason("");
+    setNationalId("");
+    setBankAccountNumber("");
+    setBankName("");
+    setAnnualLeaveBalance(12);
+    setHireDate(new Date().toISOString().split("T")[0]);
+    setTerminationDate("");
     setError("");
     setShowModal(true);
   };
@@ -1055,7 +1082,6 @@ function HREmployees() {
     setFullName(e.name);
     setDepartment(e.rawDept || "Store");
     setPosition(e.rawPosition || "Cashier");
-    // Map Vietnamese role title to uppercase enum
     setEmpRole(e.role === "Chủ siêu thị" ? "OWNER" :
                e.role === "Quản lý cửa hàng" ? "STORE_MANAGER" :
                e.role === "Thủ kho" ? "WAREHOUSE_STAFF" :
@@ -1066,6 +1092,12 @@ function HREmployees() {
     setAttendanceAllowance(e.attendanceAllowance);
     setEmpStatus(e.rawStatus || "ACTIVE");
     setEditReason("");
+    setNationalId(e.nationalId || "");
+    setBankAccountNumber(e.bankAccountNumber || "");
+    setBankName(e.bankName || "");
+    setAnnualLeaveBalance(e.annualLeaveBalance ?? 12);
+    setHireDate(e.rawJoined || "");
+    setTerminationDate(e.rawTerminationDate || "");
     setError("");
     setShowModal(true);
   };
@@ -1079,31 +1111,33 @@ function HREmployees() {
     setSaving(true);
     setError("");
     try {
+      const payload = {
+        FullName: fullName.trim(),
+        Department: department,
+        Position: position,
+        Role: empRole,
+        BaseSalary: Number(baseSalary),
+        MealAllowance: Number(mealAllowance),
+        AttendanceAllowance: Number(attendanceAllowance),
+        NationalId: nationalId.trim() || null,
+        BankAccountNumber: bankAccountNumber.trim() || null,
+        BankName: bankName.trim() || null,
+        AnnualLeaveBalance: Number(annualLeaveBalance),
+        HireDate: hireDate || null,
+        TerminationDate: terminationDate || null
+      };
+
       if (modalMode === "add") {
         await apiFetch("/api/hr/employees", {
           method: "POST",
-          body: JSON.stringify({
-            FullName: fullName.trim(),
-            Department: department,
-            Position: position,
-            Role: empRole,
-            BaseSalary: Number(baseSalary),
-            MealAllowance: Number(mealAllowance),
-            AttendanceAllowance: Number(attendanceAllowance)
-          })
+          body: JSON.stringify(payload)
         });
       } else {
         await apiFetch(`/api/hr/employees/${selectedEmp.dbId}`, {
           method: "PATCH",
           body: JSON.stringify({
-            FullName: fullName.trim(),
-            Department: department,
-            Position: position,
-            Role: empRole,
+            ...payload,
             Status: empStatus,
-            BaseSalary: Number(baseSalary),
-            MealAllowance: Number(mealAllowance),
-            AttendanceAllowance: Number(attendanceAllowance),
             Version: selectedEmp.version,
             Reason: editReason.trim() || "Cập nhật nhân viên"
           })
@@ -1214,7 +1248,7 @@ function HREmployees() {
             <Th>Họ tên</Th>
             <Th>Phòng ban</Th>
             <Th>Chức vụ</Th>
-            <Th>Điện thoại</Th>
+            <Th>CCCD / CMND</Th>
             <Th>Ngày vào</Th>
             <Th>Lương cơ bản</Th>
             <Th>Trạng thái</Th>
@@ -1235,7 +1269,7 @@ function HREmployees() {
               </td>
               <Td>{e.dept}</Td>
               <Td>{e.role}</Td>
-              <Td mono>{e.phone}</Td>
+              <Td mono>{e.phone ? (e.phone.length > 4 ? e.phone.replace(/^(\d{3})\d+(\d{1})$/, "$1xxx...xxx$2") : e.phone) : "Chưa cập nhật"}</Td>
               <Td mono>{e.joined}</Td>
               <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.text }}>{fmt(e.salary)}</td>
               <td className="px-4 py-3">
@@ -1287,6 +1321,78 @@ function HREmployees() {
                   onChange={e => setFullName(e.target.value)}
                   placeholder="Ví dụ: Nguyễn Văn A"
                   className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số CCCD / CMND</label>
+                <input 
+                  type="text" 
+                  value={nationalId} 
+                  onChange={e => setNationalId(e.target.value)}
+                  placeholder="Nhập số CCCD..."
+                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số tài khoản ngân hàng</label>
+                  <input 
+                    type="text" 
+                    value={bankAccountNumber} 
+                    onChange={e => setBankAccountNumber(e.target.value)}
+                    placeholder="Số tài khoản..."
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Tên ngân hàng</label>
+                  <input 
+                    type="text" 
+                    value={bankName} 
+                    onChange={e => setBankName(e.target.value)}
+                    placeholder="Ví dụ: VCB, TCB..."
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Ngày tuyển dụng</label>
+                  <input 
+                    type="date" 
+                    value={hireDate} 
+                    onChange={e => setHireDate(e.target.value)}
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Ngày thôi việc</label>
+                  <input 
+                    type="date" 
+                    value={terminationDate} 
+                    onChange={e => setTerminationDate(e.target.value)}
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                    disabled={modalMode === "add"}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số phép năm</label>
+                <input 
+                  type="number" 
+                  value={annualLeaveBalance} 
+                  onChange={e => setAnnualLeaveBalance(Number(e.target.value))}
+                  className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
                   style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
                 />
               </div>
@@ -2257,6 +2363,13 @@ function InvProducts() {
   const [sellPrice, setSellPrice] = useState<number>(0);
   const [editReason, setEditReason] = useState("");
 
+  // Các trường sản phẩm nâng cao
+  const [sku, setSku] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [brand, setBrand] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [isFresh, setIsFresh] = useState(false);
+
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -2271,6 +2384,11 @@ function InvProducts() {
     setBuyPrice(0);
     setSellPrice(0);
     setEditReason("");
+    setSku("");
+    setImageUrl("");
+    setBrand("");
+    setSupplier("");
+    setIsFresh(false);
     setError("");
     setShowModal(true);
   };
@@ -2286,6 +2404,11 @@ function InvProducts() {
     setBuyPrice(p.buyPrice);
     setSellPrice(p.sellPrice);
     setEditReason("");
+    setSku(p.id || "");
+    setImageUrl(p.imageUrl || "");
+    setBrand(p.brand || "");
+    setSupplier(p.supplier || "");
+    setIsFresh(p.isFresh || false);
     setError("");
     setShowModal(true);
   };
@@ -2299,30 +2422,31 @@ function InvProducts() {
     setSaving(true);
     setError("");
     try {
+      const payload = {
+        Name: name.trim(),
+        CategoryCode: catCode,
+        Unit: unit.trim(),
+        Barcode: barcode.trim() || null,
+        MinStockLevel: Number(minStock),
+        AverageCost: Number(buyPrice),
+        SalePrice: Number(sellPrice),
+        Sku: sku.trim() || null,
+        ImageUrl: imageUrl.trim() || null,
+        Brand: brand.trim() || null,
+        Supplier: supplier.trim() || null,
+        IsFresh: isFresh
+      };
+
       if (modalMode === "add") {
         await apiFetch("/api/inventory/products", {
           method: "POST",
-          body: JSON.stringify({
-            Name: name.trim(),
-            CategoryCode: catCode,
-            Unit: unit.trim(),
-            Barcode: barcode.trim() || null,
-            MinStockLevel: Number(minStock),
-            AverageCost: Number(buyPrice),
-            SalePrice: Number(sellPrice)
-          })
+          body: JSON.stringify(payload)
         });
       } else {
         await apiFetch(`/api/inventory/products/${selectedProduct.dbId}`, {
           method: "PATCH",
           body: JSON.stringify({
-            Name: name.trim(),
-            CategoryCode: catCode,
-            Unit: unit.trim(),
-            Barcode: barcode.trim() || null,
-            MinStockLevel: Number(minStock),
-            AverageCost: Number(buyPrice),
-            SalePrice: Number(sellPrice),
+            ...payload,
             Version: selectedProduct.version,
             Reason: editReason.trim() || "Cập nhật sản phẩm"
           })
@@ -2472,6 +2596,71 @@ function InvProducts() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mã SKU sản phẩm</label>
+                  <input 
+                    type="text" 
+                    value={sku} 
+                    onChange={e => setSku(e.target.value.toUpperCase())}
+                    placeholder="Không bắt buộc"
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                    disabled={modalMode === "edit"}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Thương hiệu</label>
+                  <input 
+                    type="text" 
+                    value={brand} 
+                    onChange={e => setBrand(e.target.value)}
+                    placeholder="Ví dụ: Coca-Cola, TH True..."
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>URL hình ảnh sản phẩm</label>
+                  <input 
+                    type="text" 
+                    value={imageUrl} 
+                    onChange={e => setImageUrl(e.target.value)}
+                    placeholder="Ví dụ: http://image.png"
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhà cung cấp gợi ý</label>
+                  <input 
+                    type="text" 
+                    value={supplier} 
+                    onChange={e => setSupplier(e.target.value)}
+                    placeholder="Ví dụ: Minh Anh..."
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                  />
+                </div>
+                <div className="flex items-center pt-5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={isFresh} 
+                      onChange={e => setIsFresh(e.target.checked)}
+                      className="w-4 h-4 rounded text-green-500 focus:ring-green-500"
+                    />
+                    <span className="text-xs font-semibold" style={{ color: S.text }}>Hàng tươi sống / ngắn ngày</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhóm hàng</label>
                   <select 
                     value={catCode} 
@@ -2601,11 +2790,15 @@ function InvStock() {
 
   // Nhập kho states
   const [inSupplier, setInSupplier] = useState("Nhà cung cấp Minh Anh");
+  const [inNotes, setInNotes] = useState("");
+  const [inPaymentStatus, setInPaymentStatus] = useState<number>(3); // 3 = PAID
   const [inLines, setInLines] = useState<any[]>([]);
   const [selectedProdId, setSelectedProdId] = useState<number>(products[0]?.dbId || 0);
   const [inQty, setInQty] = useState<number>(1);
   const [inPrice, setInPrice] = useState<number>(0);
   const [inExpiry, setInExpiry] = useState<string>("");
+  const [inMfg, setInMfg] = useState<string>("");
+  const [inLineNotes, setInLineNotes] = useState<string>("");
 
   // Xuất kho states
   const [outProdId, setOutProdId] = useState<number>(products[0]?.dbId || 0);
@@ -2692,12 +2885,16 @@ function InvStock() {
         productName: prod.name,
         quantity: inQty,
         unitCost: inPrice,
-        expiryDate: inExpiry || null
+        manufacturingDate: inMfg || null,
+        expiryDate: inExpiry || null,
+        notes: inLineNotes.trim() || null
       }
     ]);
     // Reset inputs
     setInQty(1);
     setInExpiry("");
+    setInMfg("");
+    setInLineNotes("");
   };
 
   const removeInLine = (index: number) => {
@@ -2845,6 +3042,22 @@ function InvStock() {
                 <input type="text" required value={inSupplier} onChange={e => setInSupplier(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Trạng thái thanh toán</label>
+                  <select value={inPaymentStatus} onChange={e => setInPaymentStatus(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent font-semibold" style={{ borderColor: S.border, color: S.text }}>
+                    <option value={1}>Chưa thanh toán</option>
+                    <option value={2}>Thanh toán một phần</option>
+                    <option value={3}>Đã thanh toán</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Ghi chú phiếu nhập</label>
+                  <input type="text" value={inNotes} onChange={e => setInNotes(e.target.value)} placeholder="Không bắt buộc"
+                    className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                </div>
+              </div>
               <div className="p-3 rounded-lg border space-y-3" style={{ borderColor: S.border, background: `${S.bg}40` }}>
                 <div className="text-xs font-bold" style={{ color: S.text }}>Thêm sản phẩm nhập</div>
                 <div className="grid grid-cols-2 gap-2">
@@ -2868,8 +3081,20 @@ function InvStock() {
                       className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
                   </div>
                   <div>
+                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ngày sản xuất (NSX)</label>
+                    <input type="date" value={inMfg} onChange={e => setInMfg(e.target.value)}
+                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
                     <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ngày hết hạn (HSD)</label>
                     <input type="date" value={inExpiry} onChange={e => setInExpiry(e.target.value)}
+                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ghi chú dòng hàng</label>
+                    <input type="text" value={inLineNotes} onChange={e => setInLineNotes(e.target.value)} placeholder="Ví dụ: Quà tặng, lỗi nhẹ..."
                       className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
                   </div>
                 </div>
@@ -2890,7 +3115,7 @@ function InvStock() {
                         <div className="flex-1 min-w-0 pr-2">
                           <div className="font-medium truncate" style={{ color: S.text }}>{l.productName}</div>
                           <div className="text-[10px]" style={{ color: S.muted }}>
-                            SL: {l.quantity} × {fmt(l.unitCost)} {l.expiryDate ? `| HSD: ${l.expiryDate}` : ""}
+                            SL: {l.quantity} × {fmt(l.unitCost)} {l.manufacturingDate ? `| NSX: ${l.manufacturingDate}` : ""} {l.expiryDate ? `| HSD: ${l.expiryDate}` : ""} {l.notes ? `| Note: ${l.notes}` : ""}
                           </div>
                         </div>
                         <button type="button" onClick={() => removeInLine(idx)} className="text-red-500 font-bold px-1.5 py-0.5 hover:bg-red-500/10 rounded cursor-pointer">✕</button>
@@ -3794,6 +4019,303 @@ function SysUsers() {
   );
 }
 
+function SysAudit() {
+  const S = useS();
+  const { apiFetch } = useApi();
+  const [logs, setLogs] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(15);
+  const [loading, setLoading] = useState(false);
+
+  // Bộ lọc
+  const [moduleFilter, setModuleFilter] = useState("all");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  // Xem chi tiết log
+  const [selectedLog, setSelectedLog] = useState<any>(null);
+
+  const moduleTypes: Record<string, string> = {
+    all: "",
+    hr: "Employee,AttendanceRecord,LeaveRequest,PayrollRecord",
+    inv: "Product,WarehouseReceipt,WarehouseIssue,ShrinkageRecord",
+    pos: "PosTransaction,PosSession,PosRefund",
+    acc: "JournalEntry,APInvoice,APPayment",
+    sys: "User"
+  };
+
+  const actionLabels: Record<string, string> = {
+    CREATE: "Tạo mới",
+    UPDATE: "Cập nhật",
+    SOFT_DELETE: "Xóa mềm",
+    RESTORE: "Khôi phục",
+    APPROVE: "Duyệt",
+    REJECT: "Từ chối",
+    LOCK: "Khóa",
+    UNLOCK: "Mở khóa",
+    REVERSAL: "Đảo bút toán",
+    LOGIN: "Đăng nhập",
+    LOGOUT: "Đăng xuất",
+    LOGIN_FAILED: "Đăng nhập lỗi",
+    PERMISSION_DENIED: "Bị từ chối"
+  };
+
+  const getActionBadge = (act: string) => {
+    switch (act) {
+      case "CREATE": return { color: S.blue, bg: `${S.blue}18` };
+      case "UPDATE": return { color: S.amber, bg: `${S.amber}18` };
+      case "SOFT_DELETE": return { color: S.red, bg: `${S.red}18` };
+      case "APPROVE": return { color: S.green, bg: `${S.green}18` };
+      case "REJECT": return { color: S.red, bg: `${S.red}18` };
+      case "LOGIN": return { color: S.green, bg: `${S.green}18` };
+      case "LOGIN_FAILED": return { color: S.red, bg: `${S.red}18` };
+      default: return { color: S.muted, bg: `${S.muted}20` };
+    }
+  };
+
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const types = moduleTypes[moduleFilter];
+      const query = new URLSearchParams();
+      if (types) query.append("entityTypes", types);
+      if (actionFilter !== "all") query.append("action", actionFilter);
+      if (fromDate) query.append("from", fromDate);
+      if (toDate) query.append("to", toDate);
+      query.append("page", page.toString());
+      query.append("limit", limit.toString());
+
+      const res = await apiFetch(`/api/audit/all?${query.toString()}`);
+      setLogs(res.data || []);
+      setTotal(res.total || 0);
+    } catch (err: any) {
+      console.error("Failed to fetch audit logs:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+  }, [page, moduleFilter, actionFilter, fromDate, toDate]);
+
+  const handleExport = async () => {
+    try {
+      const types = moduleTypes[moduleFilter];
+      const query = new URLSearchParams();
+      if (types) query.append("entityTypes", types);
+      if (actionFilter !== "all") query.append("action", actionFilter);
+      if (fromDate) query.append("from", fromDate);
+      if (toDate) query.append("to", toDate);
+      query.append("page", "1");
+      query.append("limit", "1000");
+
+      const res = await apiFetch(`/api/audit/all?${query.toString()}`);
+      const exportData = res.data || [];
+      if (exportData.length === 0) {
+        alert("Không có dữ liệu nhật ký hệ thống để xuất!");
+        return;
+      }
+
+      const headers = ["Thời Gian", "Hành Động", "Phân Hệ", "Mã Đối Tượng", "Tên Đối Tác/Nhân Viên", "Mô Tả", "Tài Khoản", "IP"];
+      const rows = exportData.map((l: any) => [
+        new Date(l.createdAt).toLocaleString("vi-VN"),
+        actionLabels[l.action] || l.action,
+        l.entityType,
+        l.entityId,
+        l.entityLabel || "—",
+        l.summary,
+        l.userName,
+        l.ipAddress || "—"
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row: any) => row.map((val: any) => {
+          const str = String(val ?? "").replace(/"/g, '""');
+          return str.includes(",") || str.includes("\n") || str.includes('"') ? `"${str}"` : str;
+        }).join(","))
+      ].join("\n");
+
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Nhat_ky_he_thong_${dateStr}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      alert("Lỗi xuất file: " + err.message);
+    }
+  };
+
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl p-4 border flex flex-wrap gap-4 items-end shadow-sm animate-in fade-in duration-150" style={{ background: S.card, borderColor: S.border }}>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Phân hệ nghiệp vụ</label>
+          <select value={moduleFilter} onChange={e => { setModuleFilter(e.target.value); setPage(1); }}
+            className="text-xs px-2.5 py-1.5 rounded-lg border outline-none font-semibold bg-transparent" style={{ borderColor: S.border, color: S.text }}>
+            <option value="all">Tất cả nghiệp vụ</option>
+            <option value="hr">Nhân sự & Lương</option>
+            <option value="inv">Hàng hóa & Kho vận</option>
+            <option value="pos">Bán lẻ POS</option>
+            <option value="acc">Kế toán & Thu chi</option>
+            <option value="sys">Tài khoản & Phân quyền</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Hành động</label>
+          <select value={actionFilter} onChange={e => { setActionFilter(e.target.value); setPage(1); }}
+            className="text-xs px-2.5 py-1.5 rounded-lg border outline-none font-semibold bg-transparent" style={{ borderColor: S.border, color: S.text }}>
+            <option value="all">Tất cả hành động</option>
+            {Object.entries(actionLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Từ ngày</label>
+          <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1); }}
+            className="text-xs px-2.5 py-1.5 rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Đến ngày</label>
+          <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1); }}
+            className="text-xs px-2.5 py-1.5 rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+        </div>
+
+        <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white cursor-pointer ml-auto" style={{ background: S.blue }}>
+          <FileSpreadsheet size={13} />Xuất Nhật ký
+        </button>
+      </div>
+
+      <div className="flex gap-4 items-start">
+        <div className="flex-1 min-w-0">
+          <TableWrap>
+            <thead>
+              <tr>
+                <Th>Thời gian</Th>
+                <Th>Tài khoản</Th>
+                <Th>Hành động</Th>
+                <Th>Đối tượng</Th>
+                <Th>Mô tả thay đổi</Th>
+                <Th>IP</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="text-center py-6 text-xs" style={{ color: S.muted }}>Đang tải nhật ký hệ thống...</td></tr>
+              ) : logs.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-6 text-xs" style={{ color: S.muted }}>Không tìm thấy nhật ký nào.</td></tr>
+              ) : (
+                logs.map((l, idx) => {
+                  const badge = getActionBadge(l.action);
+                  return (
+                    <Tr key={l.id} last={idx === logs.length - 1} onClick={() => setSelectedLog(l)}
+                      className={`cursor-pointer hover:opacity-90 ${selectedLog?.id === l.id ? "bg-slate-500/5" : ""}`}>
+                      <Td mono>{new Date(l.createdAt).toLocaleString("vi-VN")}</Td>
+                      <Td><strong>{l.userName}</strong></Td>
+                      <td className="px-4 py-3">
+                        <Badge label={actionLabels[l.action] || l.action} color={badge.color} bg={badge.bg} />
+                      </td>
+                      <Td mono className="text-xs">{l.entityType} ({l.entityId})</Td>
+                      <td className="px-4 py-3 text-xs font-medium" style={{ color: S.text }}>{l.summary}</td>
+                      <Td mono>{l.ipAddress || "—"}</Td>
+                    </Tr>
+                  );
+                })
+              )}
+            </tbody>
+          </TableWrap>
+
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 mt-4">
+              <button disabled={page === 1} onClick={() => setPage(page - 1)}
+                className="px-2.5 py-1 rounded border text-xs font-semibold disabled:opacity-50" style={{ borderColor: S.border, color: S.text }}>Trước</button>
+              <span className="text-xs font-semibold" style={{ color: S.text }}>Trang {page} / {totalPages}</span>
+              <button disabled={page === totalPages} onClick={() => setPage(page + 1)}
+                className="px-2.5 py-1 rounded border text-xs font-semibold disabled:opacity-50" style={{ borderColor: S.border, color: S.text }}>Sau</button>
+            </div>
+          )}
+        </div>
+
+        {selectedLog && (
+          <div className="w-80 rounded-xl p-4 border shadow-sm space-y-4 shrink-0 animate-in slide-in-from-right duration-150" style={{ background: S.card, borderColor: S.border }}>
+            <div className="flex justify-between items-center border-b pb-2" style={{ borderColor: S.border }}>
+              <h5 className="text-xs font-bold" style={{ color: S.text }}>Chi tiết thay đổi dữ liệu</h5>
+              <button onClick={() => setSelectedLog(null)} className="text-xs font-bold" style={{ color: S.muted }}>Đóng</button>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Đối tượng</span>
+                <span className="text-xs font-semibold" style={{ color: S.text }}>{selectedLog.entityType} (Mã ID: {selectedLog.entityId})</span>
+              </div>
+              
+              {selectedLog.entityLabel && (
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Nhãn đối tượng</span>
+                  <span className="text-xs font-semibold" style={{ color: S.text }}>{selectedLog.entityLabel}</span>
+                </div>
+              )}
+
+              {selectedLog.reason && (
+                <div className="p-2.5 rounded-lg border text-xs" style={{ borderColor: S.border, background: `${S.amber}0c`, color: S.amber }}>
+                  <strong>Lý do:</strong> {selectedLog.reason}
+                </div>
+              )}
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: S.muted }}>Dữ liệu thuộc tính thay đổi</span>
+                <div className="space-y-2 border rounded-lg p-2.5 max-h-64 overflow-y-auto" style={{ borderColor: S.border, background: S.bg }}>
+                  {(() => {
+                    let changedFields: any = null;
+                    try {
+                      const fieldsRaw = selectedLog.changedFields || "{}";
+                      changedFields = typeof fieldsRaw === "string" ? JSON.parse(fieldsRaw) : fieldsRaw;
+                    } catch (e) {
+                      console.error("Failed to parse changedFields:", e);
+                    }
+
+                    if (!changedFields || Object.keys(changedFields).length === 0) {
+                      return <span className="text-xs italic" style={{ color: S.muted }}>Không ghi nhận thuộc tính thay đổi (hoặc là thao tác ghi nhận toàn bộ thực thể).</span>;
+                    }
+
+                    return Object.entries(changedFields).map(([field, diff]: any) => {
+                      const fromVal = diff?.from !== undefined && diff?.from !== null ? String(diff.from) : "null";
+                      const toVal = diff?.to !== undefined && diff?.to !== null ? String(diff.to) : "null";
+                      
+                      return (
+                        <div key={field} className="text-xs py-1 border-b last:border-b-0" style={{ borderColor: S.border }}>
+                          <span className="font-semibold block truncate" style={{ color: S.text }} title={field}>{field}</span>
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
+                            <span className="line-through text-red-500 bg-red-500/10 px-1 rounded text-[10px]">{fromVal}</span>
+                            <span style={{ color: S.muted }}>→</span>
+                            <span className="text-green-500 bg-green-500/10 px-1 rounded text-[10px] font-bold">{toVal}</span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const S = useS();
   const { apiFetch } = useApi();
@@ -3934,6 +4456,9 @@ function AppContent() {
       if (v === "sys-users") {
         return role === "OWNER";
       }
+      if (v === "sys-audit") {
+        return role === "OWNER" || role === "ACCOUNTANT";
+      }
       return false;
     };
 
@@ -3958,6 +4483,7 @@ function AppContent() {
       case "acc-accounts":   return <AccAccounts />;
       case "acc-reports":    return <AccReports />;
       case "sys-users":      return <SysUsers />;
+      case "sys-audit":      return <SysAudit />;
     }
   };
 
