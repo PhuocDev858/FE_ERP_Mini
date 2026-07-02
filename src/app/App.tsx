@@ -1305,14 +1305,19 @@ function HREmployees() {
       </TableWrap>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl p-6 border shadow-2xl transition-all duration-200 animate-in zoom-in-95 duration-150"
-               style={{ background: S.card, borderColor: S.border }}>
-            <h4 className="text-sm font-bold mb-3" style={{ color: S.text }}>
-              {modalMode === "add" ? "Thêm nhân viên mới" : "Sửa hồ sơ nhân viên"}
-            </h4>
+        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
+             onClick={() => setShowModal(false)}>
+          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+               style={{ background: S.card, borderColor: S.border }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+              <h4 className="text-base font-bold" style={{ color: S.text }}>
+                {modalMode === "add" ? "Thêm nhân viên mới" : "Sửa hồ sơ nhân viên"}
+              </h4>
+              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
+            </div>
             
-            <form onSubmit={handleSave} className="space-y-3.5 max-h-[80vh] overflow-y-auto pr-1">
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Họ và tên</label>
                 <input 
@@ -1337,7 +1342,7 @@ function HREmployees() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số tài khoản ngân hàng</label>
                   <input 
@@ -1362,7 +1367,7 @@ function HREmployees() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Ngày tuyển dụng</label>
                   <input 
@@ -1397,7 +1402,7 @@ function HREmployees() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phòng ban</label>
                   <select 
@@ -1430,7 +1435,7 @@ function HREmployees() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Vai trò phân quyền</label>
                   <select 
@@ -1473,7 +1478,7 @@ function HREmployees() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phụ cấp ăn trưa</label>
                   <input 
@@ -1512,11 +1517,11 @@ function HREmployees() {
 
               {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
 
-              <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: S.border }}>
+              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
                 <button 
                   type="button" 
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
+                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
                   style={{ background: S.border, color: S.text }}
                   disabled={saving}
                 >
@@ -1524,7 +1529,7 @@ function HREmployees() {
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
                   style={{ background: S.green }}
                   disabled={saving}
                 >
