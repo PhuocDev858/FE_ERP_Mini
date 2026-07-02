@@ -1307,7 +1307,7 @@ function HREmployees() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
              onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
                style={{ background: S.card, borderColor: S.border }}
                onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
@@ -1990,7 +1990,7 @@ function HRLeave() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
              onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
                style={{ background: S.card, borderColor: S.border }}
                onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
@@ -2289,7 +2289,7 @@ function InvCategories() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
              onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
                style={{ background: S.card, borderColor: S.border }}
                onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
@@ -2591,7 +2591,7 @@ function InvProducts() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
              onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
                style={{ background: S.card, borderColor: S.border }}
                onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
@@ -3053,7 +3053,7 @@ function InvStock() {
       {showInModal && (
         <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
              onClick={() => { setShowInModal(false); setInLines([]); }}>
-          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
                style={{ background: S.card, borderColor: S.border }}
                onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
@@ -3164,7 +3164,7 @@ function InvStock() {
       {showOutModal && (
         <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
              onClick={() => setShowOutModal(false)}>
-          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
                style={{ background: S.card, borderColor: S.border }}
                onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
@@ -3909,7 +3909,7 @@ function SysUsers() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
              onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-1/2 h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
+          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
                style={{ background: S.card, borderColor: S.border }}
                onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
