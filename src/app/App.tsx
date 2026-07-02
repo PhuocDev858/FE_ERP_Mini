@@ -1845,265 +1845,252 @@ function HRLeave() {
     setSelectedLeave(r);
     setEmpId(r.employeeId);
     setLeaveType(r.typeCode);
-    setFromDate(r.rawFrom);
-    setToDate(r.rawTo);
+    setFromDate(r.fromRaw.split("T")[0]);
+    setToDate(r.toRaw.split("T")[0]);
     setReason(r.reason);
-    setStatus(r.status.toUpperCase());
+    setStatus(r.statusRaw);
     setError("");
     setShowModal(true);
   };
 
+  const handleQuickApprove = async (r: any, approve: boolean) => {
+    try {
+      await apiFetch(`/api/hr/leaves/${r.id}/approve`, {
+        method: "POST",
+        body: JSON.stringify({
+          approved: approve,
+          reason: approve ? "Đã duyệt nhanh" : "Từ chối nhanh"
+        })
+      });
+      await refreshData();
+    } catch (err: any) {
+      alert(err.message || "Không thể cập nhật trạng thái yêu cầu.");
+    }
+  };
+
+  const handleDelete = async (r: any) => {
+    if (!confirm("Bạn có chắc chắn muốn xóa yêu cầu này?")) return;
+    try {
+      await apiFetch(`/api/hr/leaves/${r.id}`, {
+        method: "DELETE"
+      });
+      await refreshData();
+    } catch (err: any) {
+      alert(err.message || "Không thể xóa yêu cầu.");
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fromDate || !toDate || !reason.trim() || (modalMode === "add" && !empId)) {
-      setError("Vui lòng điền đầy đủ các thông tin.");
+    if (!empId) {
+      setError("Vui lòng chọn nhân viên.");
       return;
     }
     setSaving(true);
     setError("");
     try {
       if (modalMode === "add") {
-        await apiFetch("/api/hr/leave-requests", {
+        await apiFetch("/api/hr/leaves", {
           method: "POST",
           body: JSON.stringify({
-            EmployeeId: Number(empId),
+            EmployeeId: empId,
             LeaveType: leaveType,
             FromDate: fromDate,
             ToDate: toDate,
-            Reason: reason.trim()
+            Reason: reason
           })
         });
       } else {
-        await apiFetch(`/api/hr/leave-requests/${selectedLeave.dbId}`, {
-          method: "PATCH",
+        await apiFetch(`/api/hr/leaves/${selectedLeave.id}`, {
+          method: "PUT",
           body: JSON.stringify({
+            EmployeeId: empId,
+            LeaveType: leaveType,
             FromDate: fromDate,
             ToDate: toDate,
-            LeaveType: leaveType,
-            Reason: reason.trim(),
+            Reason: reason,
             Status: status
           })
         });
       }
-      await refreshData();
       setShowModal(false);
+      await refreshData();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi.");
+      setError(err.message || "Lỗi khi lưu yêu cầu nghỉ phép.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (r: any) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa yêu cầu nghỉ phép của "${r.employee}" không?`)) {
-      return;
-    }
-    try {
-      await apiFetch(`/api/hr/leave-requests/${r.dbId}`, {
-        method: "DELETE"
-      });
-      await refreshData();
-    } catch (err: any) {
-      alert(err.message || "Không thể xóa yêu cầu nghỉ phép.");
-    }
-  };
-
-  const handleQuickApprove = async (r: any, approve: boolean) => {
-    try {
-      const currentUserId = employees.find(e => e.name === user?.fullName)?.dbId || 1;
-      if (approve) {
-        await apiFetch(`/api/hr/leave-requests/${r.dbId}/approve`, {
-          method: "PATCH",
-          body: JSON.stringify({ ApproverId: currentUserId })
-        });
-      } else {
-        await apiFetch(`/api/hr/leave-requests/${r.dbId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ Status: "REJECTED" })
-        });
-      }
-      await refreshData();
-    } catch (err: any) {
-      alert(err.message || "Thao tác phê duyệt thất bại.");
-    }
-  };
-
-  const leaveCfg = {
-    pending:  { label: "Chờ duyệt", color: S.amber, bg: `${S.amber}18` },
-    approved: { label: "Đã duyệt",  color: S.green, bg: `${S.green}18` },
-    rejected: { label: "Từ chối",   color: S.red,   bg: `${S.red}18` },
-  };
-
   return (
-    <div className="space-y-4">
-      <SectionHeader action={isOwner ? <AddBtn label="Tạo yêu cầu" onClick={openAdd} /> : null}>
-        <div className="text-sm" style={{ color: S.muted }}>{leaveRequests.length} yêu cầu nghỉ phép</div>
-      </SectionHeader>
-      <TableWrap>
-        <thead>
-          <tr>
-            <Th>Mã</Th>
-            <Th>Nhân viên</Th>
-            <Th>Loại phép</Th>
-            <Th>Từ ngày</Th>
-            <Th>Đến ngày</Th>
-            <Th>Số ngày</Th>
-            <Th>Lý do</Th>
-            <Th>Trạng thái</Th>
-            {isOwner && <Th>Thao tác</Th>}
-          </tr>
-        </thead>
-        <tbody>
-          {leaveRequests.map((r, i) => {
-            const cfg = leaveCfg[r.status as keyof typeof leaveCfg] || { label: r.status, color: S.muted, bg: `${S.muted}20` };
-            return (
-              <Tr key={r.id} last={i === leaveRequests.length - 1}>
-                <Td mono>{r.id}</Td>
-                <td className="px-4 py-3 text-sm font-medium" style={{ color: S.text }}>{r.employee}</td>
-                <Td>{r.type}</Td>
-                <Td mono>{r.from}</Td>
-                <Td mono>{r.to}</Td>
-                <td className="px-4 py-3 text-sm font-mono font-bold" style={{ color: S.text }}>{r.days}</td>
-                <td className="px-4 py-3 text-sm max-w-36 truncate" style={{ color: S.sub }}>{r.reason}</td>
-                <td className="px-4 py-3"><Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /></td>
-                {isOwner && (
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {r.status === "pending" && (
-                        <>
-                          <button onClick={() => handleQuickApprove(r, true)} className="p-1 rounded transition-colors hover:bg-black/10" style={{ color: S.green }} title="Duyệt"><CheckCircle size={15} /></button>
-                          <button onClick={() => handleQuickApprove(r, false)} className="p-1 rounded transition-colors hover:bg-black/10" style={{ color: S.red }} title="Từ chối"><XCircle size={15} /></button>
-                        </>
-                      )}
-                      <button onClick={() => openEdit(r)} className="p-1 rounded transition-colors hover:bg-black/10" style={{ color: S.muted }} title="Sửa"><Edit2 size={13} /></button>
-                      <button onClick={() => handleDelete(r)} className="p-1 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" style={{ color: S.red }} title="Xóa"><Trash2 size={13} /></button>
-                    </div>
-                  </td>
-                )}
-              </Tr>
-            );
-          })}
-        </tbody>
-      </TableWrap>
+    <div className="flex h-full w-full overflow-hidden relative gap-5">
+      {/* Màn hình chính */}
+      <div className="flex-1 min-w-0 flex flex-col space-y-4 transition-all duration-300">
+        <SectionHeader action={isOwner ? <AddBtn label="Tạo yêu cầu" onClick={openAdd} /> : null}>
+          <div className="text-sm" style={{ color: S.muted }}>{leaveRequests.length} yêu cầu nghỉ phép</div>
+        </SectionHeader>
+        <TableWrap>
+          <thead>
+            <tr>
+              <Th>Mã</Th>
+              <Th>Nhân viên</Th>
+              <Th>Loại phép</Th>
+              <Th>Từ ngày</Th>
+              <Th>Đến ngày</Th>
+              <Th>Số ngày</Th>
+              <Th>Lý do</Th>
+              <Th>Trạng thái</Th>
+              {isOwner && <Th>Thao tác</Th>}
+            </tr>
+          </thead>
+          <tbody>
+            {leaveRequests.map((r, i) => {
+              const cfg = leaveCfg[r.status as keyof typeof leaveCfg] || { label: r.status, color: S.muted, bg: `${S.muted}20` };
+              return (
+                <Tr key={r.id} last={i === leaveRequests.length - 1}>
+                  <Td mono>{r.id}</Td>
+                  <td className="px-4 py-3 text-sm font-medium" style={{ color: S.text }}>{r.employee}</td>
+                  <Td>{r.type}</Td>
+                  <Td mono>{r.from}</Td>
+                  <Td mono>{r.to}</Td>
+                  <td className="px-4 py-3 text-sm font-mono font-bold" style={{ color: S.text }}>{r.days}</td>
+                  <td className="px-4 py-3 text-sm max-w-36 truncate" style={{ color: S.sub }}>{r.reason}</td>
+                  <td className="px-4 py-3"><Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /></td>
+                  {isOwner && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {r.status === "pending" && (
+                          <>
+                            <button onClick={() => handleQuickApprove(r, true)} className="p-1 rounded transition-colors hover:bg-black/10" style={{ color: S.green }} title="Duyệt"><CheckCircle size={15} /></button>
+                            <button onClick={() => handleQuickApprove(r, false)} className="p-1 rounded transition-colors hover:bg-black/10" style={{ color: S.red }} title="Từ chối"><XCircle size={15} /></button>
+                          </>
+                        )}
+                        <button onClick={() => openEdit(r)} className="p-1 rounded transition-colors hover:bg-black/10" style={{ color: S.muted }} title="Sửa"><Edit2 size={13} /></button>
+                        <button onClick={() => handleDelete(r)} className="p-1 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" style={{ color: S.red }} title="Xóa"><Trash2 size={13} /></button>
+                      </div>
+                    </td>
+                  )}
+                </Tr>
+              );
+            })}
+          </tbody>
+        </TableWrap>
+      </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
-             onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
-               style={{ background: S.card, borderColor: S.border }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
-              <h4 className="text-base font-bold" style={{ color: S.text }}>
-                {modalMode === "add" ? "Tạo yêu cầu nghỉ phép mới" : "Chỉnh sửa yêu cầu nghỉ phép"}
-              </h4>
-              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
-            </div>
-            
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
-              {modalMode === "add" && (
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhân viên</label>
-                  <select 
-                    value={empId} 
-                    onChange={e => setEmpId(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    <option value={0}>-- Chọn nhân viên --</option>
-                    {employees.map(e => <option key={e.id} value={e.dbId}>{e.name} ({e.id})</option>)}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Loại nghỉ phép</label>
-                  <select 
-                    value={leaveType} 
-                    onChange={e => setLeaveType(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    <option value="ANNUAL">Phép năm (ANNUAL)</option>
-                    <option value="SICK">Phép bệnh (SICK)</option>
-                    <option value="UNPAID">Nghỉ không lương (UNPAID)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Trạng thái duyệt</label>
-                  <select 
-                    value={status} 
-                    onChange={e => setStatus(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                    disabled={modalMode === "add"}
-                  >
-                    <option value="PENDING">Chờ duyệt (PENDING)</option>
-                    <option value="APPROVED">Đã duyệt (APPROVED)</option>
-                    <option value="REJECTED">Từ chối (REJECTED)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Từ ngày</label>
-                  <input 
-                    type="date" 
-                    value={fromDate} 
-                    onChange={e => setFromDate(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Đến ngày</label>
-                  <input 
-                    type="date" 
-                    value={toDate} 
-                    onChange={e => setToDate(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lý do nghỉ phép</label>
-                <textarea 
-                  value={reason} 
-                  onChange={e => setReason(e.target.value)}
-                  placeholder="Ví dụ: Nghỉ khám bệnh, giải quyết việc gia đình..."
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none h-24 resize-none"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)}
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
-                  style={{ background: S.border, color: S.text }}
-                  disabled={saving}
-                >
-                  Hủy
-                </button>
-                <button 
-                  type="submit" 
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
-                  style={{ background: S.green }}
-                  disabled={saving}
-                >
-                  {saving ? "Đang lưu..." : "Lưu"}
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Drawer trượt dạng đẩy (Push Content Layout) */}
+      <div className={`h-full flex flex-col border-l shadow-2xl transition-all duration-300 overflow-hidden ${
+        showModal ? 'w-full sm:w-[35%] lg:w-[30%] opacity-100 p-6 border-l shadow-2xl' : 'w-0 opacity-0 p-0 border-l-0 shadow-none'
+      }`} style={{ background: S.card, borderColor: S.border }}>
+        <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+          <h4 className="text-base font-bold" style={{ color: S.text }}>
+            {modalMode === "add" ? "Tạo yêu cầu nghỉ phép mới" : "Chỉnh sửa yêu cầu nghỉ phép"}
+          </h4>
+          <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
         </div>
-      )}
+        
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
+          {modalMode === "add" && (
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhân viên</label>
+              <select 
+                value={empId} 
+                onChange={e => setEmpId(Number(e.target.value))}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              >
+                <option value={0}>-- Chọn nhân viên --</option>
+                {employees.map(e => <option key={e.id} value={e.dbId}>{e.name} ({e.id})</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Loại nghỉ phép</label>
+              <select 
+                value={leaveType} 
+                onChange={e => setLeaveType(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              >
+                <option value="ANNUAL">Phép năm (ANNUAL)</option>
+                <option value="SICK">Phép bệnh (SICK)</option>
+                <option value="UNPAID">Nghỉ không lương (UNPAID)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Trạng thái duyệt</label>
+              <select 
+                value={status} 
+                onChange={e => setStatus(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                disabled={modalMode === "add"}
+              >
+                <option value="PENDING">Chờ duyệt (PENDING)</option>
+                <option value="APPROVED">Đã duyệt (APPROVED)</option>
+                <option value="REJECTED">Từ chối (REJECTED)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Từ ngày</label>
+              <input 
+                type="date" 
+                value={fromDate} 
+                onChange={e => setFromDate(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Đến ngày</label>
+              <input 
+                type="date" 
+                value={toDate} 
+                onChange={e => setToDate(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lý do nghỉ phép</label>
+            <textarea 
+              value={reason} 
+              onChange={e => setReason(e.target.value)}
+              placeholder="Ví dụ: Nghỉ khám bệnh, giải quyết việc gia đình..."
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none h-24 resize-none"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
+
+          <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 font-semibold"
+              style={{ background: S.border, color: S.text }}
+              disabled={saving}
+            >
+              Hủy
+            </button>
+            <button 
+              type="submit" 
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5 font-semibold"
+              style={{ background: S.green }}
+              disabled={saving}
+            >
+              {saving ? "Đang lưu..." : "Lưu"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -2152,7 +2139,7 @@ function HRPayroll() {
 
 function InvCategories() {
   const S = useS();
-  const { categories, user, apiFetch, refreshData } = useApi();
+  const { categories, apiFetch, refreshData, user } = useApi();
   const isOwner = user?.role === "OWNER";
 
   const [showModal, setShowModal] = useState(false);
@@ -2173,11 +2160,11 @@ function InvCategories() {
     setShowModal(true);
   };
 
-  const openEdit = (cat: any) => {
+  const openEdit = (c: any) => {
     setModalMode("edit");
-    setSelectedCat(cat);
-    setCode(cat.code);
-    setName(cat.name);
+    setSelectedCat(c);
+    setCode(c.code);
+    setName(c.name);
     setError("");
     setShowModal(true);
   };
@@ -2185,7 +2172,7 @@ function InvCategories() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !name.trim()) {
-      setError("Vui lòng điền đầy đủ mã và tên nhóm.");
+      setError("Vui lòng điền đầy đủ mã và tên nhóm hàng.");
       return;
     }
     setSaving(true);
@@ -2194,31 +2181,31 @@ function InvCategories() {
       if (modalMode === "add") {
         await apiFetch("/api/inventory/categories", {
           method: "POST",
-          body: JSON.stringify({ Code: code.trim(), Name: name.trim() })
+          body: JSON.stringify({
+            Code: code.trim().toUpperCase(),
+            Name: name.trim()
+          })
         });
       } else {
         await apiFetch(`/api/inventory/categories/${selectedCat.dbId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ Code: code.trim(), Name: name.trim() })
+          method: "PUT",
+          body: JSON.stringify({
+            Code: code.trim().toUpperCase(),
+            Name: name.trim()
+          })
         });
       }
-      await refreshData();
       setShowModal(false);
+      await refreshData();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi.");
+      setError(err.message || "Lỗi khi lưu nhóm hàng.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (cat: any) => {
-    if (cat.products > 0) {
-      alert("Nhóm hàng này đang có sản phẩm, không thể xóa!");
-      return;
-    }
-    if (!confirm(`Bạn có chắc chắn muốn xóa nhóm hàng "${cat.name}" (${cat.code}) không?`)) {
-      return;
-    }
+    if (!confirm(`Bạn có chắc chắn muốn xóa nhóm hàng "${cat.name}"? Tác vụ này không thể hoàn tác.`)) return;
     try {
       await apiFetch(`/api/inventory/categories/${cat.dbId}`, {
         method: "DELETE"
@@ -2232,123 +2219,122 @@ function InvCategories() {
   const maxVal = Math.max(...categories.map(c => c.value), 1);
 
   return (
-    <div className="space-y-4">
-      <SectionHeader action={isOwner ? <AddBtn label="Thêm nhóm" onClick={openAdd} /> : null}>
-        <div className="text-sm" style={{ color: S.muted }}>
-          {categories.length} nhóm hàng — {categories.reduce((s, c) => s + c.products, 0)} sản phẩm
-        </div>
-      </SectionHeader>
-      
-      <div className="grid grid-cols-2 gap-4">
-        {categories.map(c => (
-          <div key={c.id} className="rounded-xl p-4 transition-all duration-200 cursor-pointer group"
-            style={{ background: S.card, border: `1px solid ${S.border}` }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = `${S.green}50`}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = S.border}>
-            
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="text-sm font-semibold" style={{ color: S.text }}>{c.name}</div>
-                <div className="text-xs font-mono mt-0.5" style={{ color: S.muted }}>{c.code}</div>
-              </div>
-              
-              {isOwner && (
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); openEdit(c); }} 
-                    className="p-1.5 rounded transition-colors hover:bg-black/10" 
-                    style={{ color: S.muted }} 
-                    title="Sửa"
-                  >
-                    <Edit2 size={12} />
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDelete(c); }} 
-                    className="p-1.5 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" 
-                    style={{ color: S.red }} 
-                    title="Xóa"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs" style={{ color: S.sub }}>{c.products} sản phẩm</span>
-              <span className="text-sm font-mono font-bold" style={{ color: S.green }}>{(c.value / 1000000).toFixed(1)} tr</span>
-            </div>
-            <div className="h-1 rounded-full overflow-hidden" style={{ background: S.border }}>
-              <div className="h-full rounded-full" style={{ width: `${(c.value / maxVal) * 100}%`, background: S.green }}></div>
-            </div>
+    <div className="flex h-full w-full overflow-hidden relative gap-5">
+      {/* Màn hình chính */}
+      <div className="flex-1 min-w-0 flex flex-col space-y-4 transition-all duration-300">
+        <SectionHeader action={isOwner ? <AddBtn label="Thêm nhóm" onClick={openAdd} /> : null}>
+          <div className="text-sm" style={{ color: S.muted }}>
+            {categories.length} nhóm hàng — {categories.reduce((s, c) => s + c.products, 0)} sản phẩm
           </div>
-        ))}
+        </SectionHeader>
+        
+        <div className="grid grid-cols-2 gap-4">
+          {categories.map(c => (
+            <div key={c.id} className="rounded-xl p-4 transition-all duration-200 cursor-pointer group"
+              style={{ background: S.card, border: `1px solid ${S.border}` }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = `${S.green}50`}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = S.border}>
+              
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: S.text }}>{c.name}</div>
+                  <div className="text-xs font-mono mt-0.5" style={{ color: S.muted }}>{c.code}</div>
+                </div>
+                
+                {isOwner && (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); openEdit(c); }} 
+                      className="p-1.5 rounded transition-colors hover:bg-black/10" 
+                      style={{ color: S.muted }} 
+                      title="Sửa"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(c); }} 
+                      className="p-1.5 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" 
+                      style={{ color: S.red }} 
+                      title="Xóa"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs" style={{ color: S.sub }}>{c.products} sản phẩm</span>
+                <span className="text-sm font-mono font-bold" style={{ color: S.green }}>{(c.value / 1000000).toFixed(1)} tr</span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: S.border }}>
+                <div className="h-full rounded-full" style={{ width: `${(c.value / maxVal) * 100}%`, background: S.green }}></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
-             onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
-               style={{ background: S.card, borderColor: S.border }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
-              <h4 className="text-base font-bold" style={{ color: S.text }}>
-                {modalMode === "add" ? "Thêm nhóm hàng mới" : "Sửa thông tin nhóm hàng"}
-              </h4>
-              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
-            </div>
-            
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mã nhóm hàng</label>
-                <input 
-                  type="text" 
-                  value={code} 
-                  onChange={e => setCode(e.target.value.toUpperCase())}
-                  placeholder="Ví dụ: THIT, FMCG, BEER..."
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  disabled={modalMode === "edit"}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Tên nhóm hàng</label>
-                <input 
-                  type="text" 
-                  value={name} 
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Ví dụ: Bia & Đồ uống"
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)}
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
-                  style={{ background: S.border, color: S.text }}
-                  disabled={saving}
-                >
-                  Hủy
-                </button>
-                <button 
-                  type="submit" 
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
-                  style={{ background: S.green }}
-                  disabled={saving}
-                >
-                  {saving ? "Đang lưu..." : "Lưu"}
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Drawer trượt dạng đẩy (Push Content Layout) */}
+      <div className={`h-full flex flex-col border-l shadow-2xl transition-all duration-300 overflow-hidden ${
+        showModal ? 'w-full sm:w-[35%] lg:w-[30%] opacity-100 p-6 border-l shadow-2xl' : 'w-0 opacity-0 p-0 border-l-0 shadow-none'
+      }`} style={{ background: S.card, borderColor: S.border }}>
+        <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+          <h4 className="text-base font-bold" style={{ color: S.text }}>
+            {modalMode === "add" ? "Thêm nhóm hàng mới" : "Sửa thông tin nhóm hàng"}
+          </h4>
+          <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
         </div>
-      )}
+        
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mã nhóm hàng</label>
+            <input 
+              type="text" 
+              value={code} 
+              onChange={e => setCode(e.target.value.toUpperCase())}
+              placeholder="Ví dụ: THIT, FMCG, BEER..."
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              disabled={modalMode === "edit"}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Tên nhóm hàng</label>
+            <input 
+              type="text" 
+              value={name} 
+              onChange={e => setName(e.target.value)}
+              placeholder="Ví dụ: Bia & Đồ uống"
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
+
+          <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
+              style={{ background: S.border, color: S.text }}
+              disabled={saving}
+            >
+              Hủy
+            </button>
+            <button 
+              type="submit" 
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5 font-semibold"
+              style={{ background: S.green }}
+              disabled={saving}
+            >
+              {saving ? "Đang lưu..." : "Lưu"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -2360,77 +2346,86 @@ function InvProducts() {
   const { products, categories, user, apiFetch, refreshData } = useApi();
   const isOwner = user?.role === "OWNER";
 
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [selectedProd, setSelectedProd] = useState<any>(null);
+
+  // Filter
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("Tất cả nhóm");
 
-  // CRUD states
-  const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-
+  // Form
   const [name, setName] = useState("");
-  const [catCode, setCatCode] = useState("");
-  const [unit, setUnit] = useState("");
-  const [barcode, setBarcode] = useState("");
-  const [minStock, setMinStock] = useState<number>(5);
-  const [buyPrice, setBuyPrice] = useState<number>(0);
-  const [sellPrice, setSellPrice] = useState<number>(0);
-  const [editReason, setEditReason] = useState("");
-
-  // Các trường sản phẩm nâng cao
   const [sku, setSku] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [catCode, setCatCode] = useState("");
+  const [unit, setUnit] = useState("Cái");
+  const [buyPrice, setBuyPrice] = useState(0);
+  const [sellPrice, setSellPrice] = useState(0);
+  const [minStock, setMinStock] = useState(10);
   const [brand, setBrand] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [supplier, setSupplier] = useState("");
   const [isFresh, setIsFresh] = useState(false);
+  const [editReason, setEditReason] = useState("");
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (categories.length > 0 && !catCode) {
+      setCatCode(categories[0].code);
+    }
+  }, [categories]);
+
   const openAdd = () => {
     setModalMode("add");
-    setSelectedProduct(null);
+    setSelectedProd(null);
     setName("");
+    setSku("");
+    setBarcode("");
     setCatCode(categories[0]?.code || "");
     setUnit("Cái");
-    setBarcode("");
-    setMinStock(5);
     setBuyPrice(0);
     setSellPrice(0);
-    setEditReason("");
-    setSku("");
-    setImageUrl("");
+    setMinStock(10);
     setBrand("");
+    setImageUrl("");
     setSupplier("");
     setIsFresh(false);
+    setEditReason("");
     setError("");
     setShowModal(true);
   };
 
   const openEdit = (p: any) => {
     setModalMode("edit");
-    setSelectedProduct(p);
+    setSelectedProd(p);
     setName(p.name);
+    setSku(p.sku);
+    setBarcode(p.barcode);
     setCatCode(p.categoryCode);
     setUnit(p.unit);
-    setBarcode(p.barcode);
-    setMinStock(p.minStock);
     setBuyPrice(p.buyPrice);
     setSellPrice(p.sellPrice);
-    setEditReason("");
-    setSku(p.id || "");
-    setImageUrl(p.imageUrl || "");
+    setMinStock(p.minStock);
     setBrand(p.brand || "");
-    setSupplier(p.supplier || "");
+    setImageUrl(p.imageUrl || "");
+    setSupplier(p.suggestedSupplier || "");
     setIsFresh(p.isFresh || false);
+    setEditReason("");
     setError("");
     setShowModal(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !catCode || !unit.trim()) {
-      setError("Vui lòng nhập tên sản phẩm, nhóm hàng và đơn vị.");
+    if (!name.trim() || !unit.trim() || buyPrice < 0 || sellPrice < 0) {
+      setError("Vui lòng nhập đầy đủ tên, đơn vị và giá hợp lệ.");
+      return;
+    }
+    if (modalMode === "edit" && !editReason.trim()) {
+      setError("Vui lòng nhập lý do chỉnh sửa sản phẩm.");
       return;
     }
     setSaving(true);
@@ -2438,17 +2433,18 @@ function InvProducts() {
     try {
       const payload = {
         Name: name.trim(),
+        Sku: sku.trim() || null,
+        Barcode: barcode.trim() || null,
         CategoryCode: catCode,
         Unit: unit.trim(),
-        Barcode: barcode.trim() || null,
-        MinStockLevel: Number(minStock),
-        AverageCost: Number(buyPrice),
-        SalePrice: Number(sellPrice),
-        Sku: sku.trim() || null,
-        ImageUrl: imageUrl.trim() || null,
+        BuyPrice: buyPrice,
+        SellPrice: sellPrice,
+        MinStock: minStock,
         Brand: brand.trim() || null,
-        Supplier: supplier.trim() || null,
-        IsFresh: isFresh
+        ImageUrl: imageUrl.trim() || null,
+        SuggestedSupplier: supplier.trim() || null,
+        IsFresh: isFresh,
+        EditReason: modalMode === "edit" ? editReason.trim() : "Tạo mới sản phẩm"
       };
 
       if (modalMode === "add") {
@@ -2457,37 +2453,27 @@ function InvProducts() {
           body: JSON.stringify(payload)
         });
       } else {
-        await apiFetch(`/api/inventory/products/${selectedProduct.dbId}`, {
-          method: "PATCH",
+        await apiFetch(`/api/inventory/products/${selectedProd.dbId}`, {
+          method: "PUT",
           body: JSON.stringify({
             ...payload,
-            Version: selectedProduct.version,
-            Reason: editReason.trim() || "Cập nhật sản phẩm"
+            Version: selectedProd.version
           })
         });
       }
-      await refreshData();
       setShowModal(false);
+      await refreshData();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi.");
+      setError(err.message || "Lỗi khi lưu sản phẩm.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (p: any) => {
-    if (p.stock > 0) {
-      alert("Sản phẩm còn tồn kho, không thể xóa!");
-      return;
-    }
-    const reason = prompt(`Nhập lý do xóa sản phẩm "${p.name}":`);
-    if (reason === null) return;
-    if (!reason.trim()) {
-      alert("Bắt buộc phải nhập lý do xóa.");
-      return;
-    }
+    if (!confirm(`Bạn có chắc chắn muốn xóa sản phẩm "${p.name}"? Tác vụ này không thể hoàn tác.`)) return;
     try {
-      await apiFetch(`/api/inventory/products/${p.dbId}?reason=${encodeURIComponent(reason.trim())}&version=${p.version}`, {
+      await apiFetch(`/api/inventory/products/${p.dbId}`, {
         method: "DELETE"
       });
       await refreshData();
@@ -2498,295 +2484,294 @@ function InvProducts() {
 
   const filtered = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
-                          p.id.toLowerCase().includes(search.toLowerCase()) ||
-                          p.barcode.toLowerCase().includes(search.toLowerCase());
+                          p.barcode.toLowerCase().includes(search.toLowerCase()) ||
+                          p.sku.toLowerCase().includes(search.toLowerCase());
     const matchesCat = selectedCat === "Tất cả nhóm" || p.category === selectedCat;
     return matchesSearch && matchesCat;
   });
 
   return (
-    <div className="space-y-4">
-      <SectionHeader action={isOwner ? <AddBtn label="Thêm sản phẩm" onClick={openAdd} /> : null}>
-        <div className="flex gap-2">
-          <input 
-            value={search} 
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm sản phẩm, barcode..." 
-            className="text-sm px-3 py-2 rounded-lg outline-none w-56 transition-colors duration-200"
-            style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }} 
-          />
-          <select 
-            value={selectedCat} 
-            onChange={e => setSelectedCat(e.target.value)}
-            className="text-sm px-3 py-2 rounded-lg outline-none transition-colors duration-200 font-semibold"
-            style={{ background: S.card, border: `1px solid ${S.border}`, color: S.sub }}
-          >
-            <option>Tất cả nhóm</option>
-            {categories.map(c => <option key={c.id || c.code} value={c.name}>{c.name}</option>)}
-          </select>
-        </div>
-      </SectionHeader>
-      <TableWrap>
-        <thead>
-          <tr>
-            <Th>Barcode</Th>
-            <Th>Tên sản phẩm</Th>
-            <Th>Nhóm</Th>
-            <Th>Đơn vị</Th>
-            <Th>Tồn kho</Th>
-            <Th>Giá nhập</Th>
-            <Th>Giá bán</Th>
-            <Th>Biên LN</Th>
-            {isOwner && <Th>Thao tác</Th>}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((p, i) => {
-            const margin = p.buyPrice > 0 ? ((p.sellPrice - p.buyPrice) / p.buyPrice * 100).toFixed(0) : "0";
-            const isLow = p.stock <= p.minStock;
-            return (
-              <Tr key={p.id} last={i === filtered.length - 1}>
-                <Td mono>{p.barcode}</Td>
-                <td className="px-4 py-3 text-sm font-medium max-w-44 truncate" style={{ color: S.text }}>{p.name}</td>
-                <Td>{p.category}</Td>
-                <Td>{p.unit}</Td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-mono font-bold" style={{ color: isLow ? S.red : S.text }}>{p.stock}</span>
-                    {isLow && <AlertCircle size={12} style={{ color: S.red }} />}
-                  </div>
-                </td>
-                <Td mono>{(p.buyPrice / 1000).toFixed(0)}k</Td>
-                <td className="px-4 py-3 text-sm font-mono" style={{ color: S.text }}>{(p.sellPrice / 1000).toFixed(0)}k</td>
-                <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.green }}>+{margin}%</td>
-                {isOwner && (
+    <div className="flex h-full w-full overflow-hidden relative gap-5">
+      {/* Màn hình chính */}
+      <div className="flex-1 min-w-0 flex flex-col space-y-4 transition-all duration-300">
+        <SectionHeader action={isOwner ? <AddBtn label="Thêm sản phẩm" onClick={openAdd} /> : null}>
+          <div className="flex gap-2">
+            <input 
+              value={search} 
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm sản phẩm, barcode..." 
+              className="text-sm px-3 py-2 rounded-lg outline-none w-56 transition-colors duration-200"
+              style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }} 
+            />
+            <select 
+              value={selectedCat} 
+              onChange={e => setSelectedCat(e.target.value)}
+              className="text-sm px-3 py-2 rounded-lg outline-none transition-colors duration-200 font-semibold"
+              style={{ background: S.card, border: `1px solid ${S.border}`, color: S.sub }}
+            >
+              <option>Tất cả nhóm</option>
+              {categories.map(c => <option key={c.id || c.code} value={c.name}>{c.name}</option>)}
+            </select>
+          </div>
+        </SectionHeader>
+        <TableWrap>
+          <thead>
+            <tr>
+              <Th>Barcode</Th>
+              <Th>Tên sản phẩm</Th>
+              <Th>Nhóm</Th>
+              <Th>Đơn vị</Th>
+              <Th>Tồn kho</Th>
+              <Th>Giá nhập</Th>
+              <Th>Giá bán</Th>
+              <Th>Biên LN</Th>
+              {isOwner && <Th>Thao tác</Th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((p, i) => {
+              const margin = p.buyPrice > 0 ? ((p.sellPrice - p.buyPrice) / p.buyPrice * 100).toFixed(0) : "0";
+              const isLow = p.stock <= p.minStock;
+              return (
+                <Tr key={p.id} last={i === filtered.length - 1}>
+                  <Td mono>{p.barcode}</Td>
+                  <td className="px-4 py-3 text-sm font-medium max-w-44 truncate" style={{ color: S.text }}>{p.name}</td>
+                  <Td>{p.category}</Td>
+                  <Td>{p.unit}</Td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={() => openEdit(p)} 
-                        className="p-1 rounded transition-colors hover:bg-black/10" 
-                        style={{ color: S.muted }} 
-                        title="Sửa"
-                      >
-                        <Edit2 size={13} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(p)} 
-                        className="p-1 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" 
-                        style={{ color: S.red }} 
-                        title="Xóa"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-mono font-bold" style={{ color: isLow ? S.red : S.text }}>{p.stock}</span>
+                      {isLow && <AlertCircle size={12} style={{ color: S.red }} />}
                     </div>
                   </td>
-                )}
-              </Tr>
-            );
-          })}
-        </tbody>
-      </TableWrap>
+                  <Td mono>{(p.buyPrice / 1000).toFixed(0)}k</Td>
+                  <td className="px-4 py-3 text-sm font-mono" style={{ color: S.text }}>{(p.sellPrice / 1000).toFixed(0)}k</td>
+                  <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.green }}>+{margin}%</td>
+                  {isOwner && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => openEdit(p)} 
+                          className="p-1 rounded transition-colors hover:bg-black/10" 
+                          style={{ color: S.muted }} 
+                          title="Sửa"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(p)} 
+                          className="p-1 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" 
+                          style={{ color: S.red }} 
+                          title="Xóa"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </Tr>
+              );
+            })}
+          </tbody>
+        </TableWrap>
+      </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
-             onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
-               style={{ background: S.card, borderColor: S.border }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
-              <h4 className="text-base font-bold" style={{ color: S.text }}>
-                {modalMode === "add" ? "Thêm sản phẩm mới" : "Sửa thông tin sản phẩm"}
-              </h4>
-              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
-            </div>
-            
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Tên sản phẩm</label>
-                <input 
-                  type="text" 
-                  value={name} 
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Ví dụ: Ba chỉ bò Mỹ"
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mã SKU sản phẩm</label>
-                  <input 
-                    type="text" 
-                    value={sku} 
-                    onChange={e => setSku(e.target.value.toUpperCase())}
-                    placeholder="Không bắt buộc"
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                    disabled={modalMode === "edit"}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Thương hiệu</label>
-                  <input 
-                    type="text" 
-                    value={brand} 
-                    onChange={e => setBrand(e.target.value)}
-                    placeholder="Ví dụ: Coca-Cola, TH True..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>URL hình ảnh sản phẩm</label>
-                <input 
-                  type="text" 
-                  value={imageUrl} 
-                  onChange={e => setImageUrl(e.target.value)}
-                  placeholder="Ví dụ: http://image.png"
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhà cung cấp gợi ý</label>
-                  <input 
-                    type="text" 
-                    value={supplier} 
-                    onChange={e => setSupplier(e.target.value)}
-                    placeholder="Ví dụ: Minh Anh..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-                <div className="flex items-center pt-5">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input 
-                      type="checkbox" 
-                      checked={isFresh} 
-                      onChange={e => setIsFresh(e.target.checked)}
-                      className="w-4 h-4 rounded text-green-500 focus:ring-green-500"
-                    />
-                    <span className="text-xs font-semibold" style={{ color: S.text }}>Hàng tươi sống / ngắn ngày</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhóm hàng</label>
-                  <select 
-                    value={catCode} 
-                    onChange={e => setCatCode(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    {categories.map(c => <option key={c.id || c.code} value={c.code}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Đơn vị tính</label>
-                  <input 
-                    type="text" 
-                    value={unit} 
-                    onChange={e => setUnit(e.target.value)}
-                    placeholder="Ví dụ: Kg, Lon, Hộp..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Barcode (Mã vạch)</label>
-                  <input 
-                    type="text" 
-                    value={barcode} 
-                    onChange={e => setBarcode(e.target.value)}
-                    placeholder="Không bắt buộc"
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mức tồn tối thiểu</label>
-                  <input 
-                    type="number" 
-                    value={minStock} 
-                    onChange={e => setMinStock(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Giá mua trung bình</label>
-                  <input 
-                    type="number" 
-                    value={buyPrice} 
-                    onChange={e => setBuyPrice(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Giá bán</label>
-                  <input 
-                    type="number" 
-                    value={sellPrice} 
-                    onChange={e => setSellPrice(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              </div>
-
-              {modalMode === "edit" && (
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lý do chỉnh sửa</label>
-                  <input 
-                    type="text" 
-                    value={editReason} 
-                    onChange={e => setEditReason(e.target.value)}
-                    placeholder="Nhập lý do thay đổi..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              )}
-
-              {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)}
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
-                  style={{ background: S.border, color: S.text }}
-                  disabled={saving}
-                >
-                  Hủy
-                </button>
-                <button 
-                  type="submit" 
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
-                  style={{ background: S.green }}
-                  disabled={saving}
-                >
-                  {saving ? "Đang lưu..." : "Lưu"}
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Drawer trượt dạng đẩy (Push Content Layout) */}
+      <div className={`h-full flex flex-col border-l shadow-2xl transition-all duration-300 overflow-hidden ${
+        showModal ? 'w-full sm:w-[35%] lg:w-[30%] opacity-100 p-6 border-l shadow-2xl' : 'w-0 opacity-0 p-0 border-l-0 shadow-none'
+      }`} style={{ background: S.card, borderColor: S.border }}>
+        <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+          <h4 className="text-base font-bold" style={{ color: S.text }}>
+            {modalMode === "add" ? "Thêm sản phẩm mới" : "Sửa thông tin sản phẩm"}
+          </h4>
+          <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
         </div>
-      )}
+        
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Tên sản phẩm</label>
+            <input 
+              type="text" 
+              value={name} 
+              onChange={e => setName(e.target.value)}
+              placeholder="Ví dụ: Ba chỉ bò Mỹ"
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mã SKU sản phẩm</label>
+              <input 
+                type="text" 
+                value={sku} 
+                onChange={e => setSku(e.target.value.toUpperCase())}
+                placeholder="Không bắt buộc"
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                disabled={modalMode === "edit"}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Thương hiệu</label>
+              <input 
+                type="text" 
+                value={brand} 
+                onChange={e => setBrand(e.target.value)}
+                placeholder="Ví dụ: Coca-Cola, TH True..."
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>URL hình ảnh sản phẩm</label>
+            <input 
+              type="text" 
+              value={imageUrl} 
+              onChange={e => setImageUrl(e.target.value)}
+              placeholder="Ví dụ: http://image.png"
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhà cung cấp gợi ý</label>
+              <input 
+                type="text" 
+                value={supplier} 
+                onChange={e => setSupplier(e.target.value)}
+                placeholder="Ví dụ: Minh Anh..."
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+            <div className="flex items-center pt-5">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={isFresh} 
+                  onChange={e => setIsFresh(e.target.checked)}
+                  className="w-4 h-4 rounded text-green-500 focus:ring-green-500"
+                />
+                <span className="text-xs font-semibold" style={{ color: S.text }}>Hàng tươi sống / ngắn ngày</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Nhóm hàng</label>
+              <select 
+                value={catCode} 
+                onChange={e => setCatCode(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              >
+                {categories.map(c => <option key={c.id || c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Đơn vị tính</label>
+              <input 
+                type="text" 
+                value={unit} 
+                onChange={e => setUnit(e.target.value)}
+                placeholder="Ví dụ: Kg, Lon, Hộp..."
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Barcode (Mã vạch)</label>
+              <input 
+                type="text" 
+                value={barcode} 
+                onChange={e => setBarcode(e.target.value)}
+                placeholder="Không bắt buộc"
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Mức tồn tối thiểu</label>
+              <input 
+                type="number" 
+                value={minStock} 
+                onChange={e => setMinStock(Number(e.target.value))}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Giá mua trung bình</label>
+              <input 
+                type="number" 
+                value={buyPrice} 
+                onChange={e => setBuyPrice(Number(e.target.value))}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Giá bán</label>
+              <input 
+                type="number" 
+                value={sellPrice} 
+                onChange={e => setSellPrice(Number(e.target.value))}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          </div>
+
+          {modalMode === "edit" && (
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lý do chỉnh sửa</label>
+              <input 
+                type="text" 
+                value={editReason} 
+                onChange={e => setEditReason(e.target.value)}
+                placeholder="Nhập lý do thay đổi..."
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          )}
+
+          {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
+
+          <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
+              style={{ background: S.border, color: S.text }}
+              disabled={saving}
+            >
+              Hủy
+            </button>
+            <button 
+              type="submit" 
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5 font-semibold"
+              style={{ background: S.green }}
+              disabled={saving}
+            >
+              {saving ? "Đang lưu..." : "Lưu"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -2805,112 +2790,66 @@ function InvStock() {
   const [showInModal, setShowInModal] = useState(false);
   const [showOutModal, setShowOutModal] = useState(false);
 
-  // Nhập kho states
-  const [inSupplier, setInSupplier] = useState("Nhà cung cấp Minh Anh");
+  // In Form State (Multi-line)
+  const [inSupplier, setInSupplier] = useState("");
+  const [inPaymentStatus, setInPaymentStatus] = useState<number>(3); // Default: Đã thanh toán (3)
   const [inNotes, setInNotes] = useState("");
-  const [inPaymentStatus, setInPaymentStatus] = useState<number>(3); // 3 = PAID
   const [inLines, setInLines] = useState<any[]>([]);
-  const [selectedProdId, setSelectedProdId] = useState<number>(products[0]?.dbId || 0);
-  const [inQty, setInQty] = useState<number>(1);
-  const [inPrice, setInPrice] = useState<number>(0);
-  const [inExpiry, setInExpiry] = useState<string>("");
-  const [inMfg, setInMfg] = useState<string>("");
-  const [inLineNotes, setInLineNotes] = useState<string>("");
 
-  // Xuất kho states
-  const [outProdId, setOutProdId] = useState<number>(products[0]?.dbId || 0);
-  const [outQty, setOutQty] = useState<number>(1);
+  // Current In Line State
+  const [selectedProdId, setSelectedProdId] = useState<number>(0);
+  const [inQty, setInQty] = useState(10);
+  const [inPrice, setInPrice] = useState(0);
+  const [inMfg, setInMfg] = useState("");
+  const [inExpiry, setInExpiry] = useState("");
+  const [inLineNotes, setInLineNotes] = useState("");
+
+  // Out Form State (Single product simple out)
+  const [outProdId, setOutProdId] = useState<number>(0);
+  const [outQty, setOutQty] = useState(1);
   const [outReason, setOutReason] = useState("Xuất hủy hàng hỏng");
 
-  const exportToExcel = () => {
-    if (filtered.length === 0) {
-      alert("Không có dữ liệu giao dịch kho để xuất!");
-      return;
-    }
-
-    const headers = ["Mã Phiếu", "Loại", "Ngày Giờ", "Sản Phẩm", "Số Lượng", "ĐVT", "Đơn Giá", "Thành Tiền", "Đối Tác", "Nhân Viên"];
-    
-    const rows = filtered.map(t => [
-      t.id,
-      t.type === "in" ? "Nhập kho" : "Xuất kho",
-      `${t.date} ${t.time}`,
-      t.product,
-      t.qty,
-      t.unit,
-      t.price,
-      t.total,
-      t.supplier || "—",
-      t.staff
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(val => {
-        const str = String(val ?? "").replace(/"/g, '""');
-        return str.includes(",") || str.includes("\n") || str.includes('"') ? `"${str}"` : str;
-      }).join(","))
-    ].join("\n");
-
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Bao_cao_nhap_xuat_kho_${dateStr}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Tự cập nhật đơn giá khi chọn sản phẩm
-  useEffect(() => {
-    const prod = products.find(p => p.dbId === selectedProdId);
-    if (prod) setInPrice(prod.buyPrice || 0);
-  }, [selectedProdId, products]);
-
+  // Effect to populate default selected product
   useEffect(() => {
     if (products.length > 0) {
       if (!selectedProdId) setSelectedProdId(products[0].dbId);
-      
-      const availableOut = products.filter(p => p.stock > 0);
-      if (availableOut.length > 0) {
-        if (!outProdId || !availableOut.some(p => p.dbId === outProdId)) {
-          setOutProdId(availableOut[0].dbId);
-        }
-      } else {
-        setOutProdId(0);
-      }
+      const inStockProds = products.filter(p => p.stock > 0);
+      if (!outProdId && inStockProds.length > 0) setOutProdId(inStockProds[0].dbId);
     }
   }, [products]);
 
+  // Effect to automatically pre-fill price when selecting product in Import tab
+  useEffect(() => {
+    if (selectedProdId) {
+      const p = products.find(prod => prod.dbId === selectedProdId);
+      if (p) {
+        setInPrice(p.buyPrice);
+      }
+    }
+  }, [selectedProdId, products]);
+
   const addInLine = () => {
     if (!selectedProdId) return;
-    const prod = products.find(p => p.dbId === selectedProdId);
-    if (!prod) return;
+    const p = products.find(prod => prod.dbId === selectedProdId);
+    if (!p) return;
     
+    // Check duplicate
     if (inLines.some(l => l.productId === selectedProdId)) {
-      alert("Sản phẩm này đã được thêm vào danh sách nhập.");
+      alert("Sản phẩm này đã có trong danh sách phiếu nhập.");
       return;
     }
 
-    setInLines([
-      ...inLines,
-      {
-        productId: selectedProdId,
-        productName: prod.name,
-        quantity: inQty,
-        unitCost: inPrice,
-        manufacturingDate: inMfg || null,
-        expiryDate: inExpiry || null,
-        notes: inLineNotes.trim() || null
-      }
-    ]);
-    // Reset inputs
-    setInQty(1);
-    setInExpiry("");
-    setInMfg("");
+    setInLines([...inLines, {
+      productId: selectedProdId,
+      productName: p.name,
+      quantity: inQty,
+      unitCost: inPrice,
+      manufacturingDate: inMfg || null,
+      expiryDate: inExpiry || null,
+      notes: inLineNotes.trim() || null
+    }]);
+
+    // Reset line state
     setInLineNotes("");
   };
 
@@ -2921,36 +2860,29 @@ function InvStock() {
   const handleInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (inLines.length === 0) {
-      alert("Vui lòng thêm ít nhất một sản phẩm vào phiếu nhập!");
+      alert("Vui lòng thêm ít nhất một sản phẩm vào phiếu nhập.");
       return;
     }
-
     try {
-      // 1. Tạo phiếu nhập kho
-      const receipt = await apiFetch("/api/inventory/receipts", {
+      await apiFetch("/api/inventory/stock-receipts", {
         method: "POST",
         body: JSON.stringify({
-          SupplierName: inSupplier,
-          CreatedBy: user?.dbId || 1,
-          Lines: inLines.map(l => ({
+          SupplierName: inSupplier.trim(),
+          PaymentStatus: Number(inPaymentStatus),
+          Notes: inNotes.trim() || null,
+          Items: inLines.map(l => ({
             ProductId: l.productId,
             Quantity: l.quantity,
             UnitCost: l.unitCost,
-            ExpiryDate: l.expiryDate
+            ManufacturingDate: l.manufacturingDate,
+            ExpiryDate: l.expiryDate,
+            Notes: l.notes
           }))
         })
       });
-
-      // 2. Tự động duyệt luôn phiếu nhập kho vừa tạo để cập nhật tồn kho tức thì
-      if (receipt && receipt.id) {
-        await apiFetch(`/api/inventory/receipts/${receipt.id}/approve`, {
-          method: "PATCH",
-          body: JSON.stringify({ ApproverId: user?.dbId || 1 })
-        });
-      }
-
-      alert("Lập phiếu và nhập kho thành công!");
       setShowInModal(false);
+      setInSupplier("");
+      setInNotes("");
       setInLines([]);
       refreshData();
     } catch (err: any) {
@@ -2960,21 +2892,24 @@ function InvStock() {
 
   const handleOutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!outProdId) return;
-
+    if (!outProdId) {
+      alert("Vui lòng chọn sản phẩm cần xuất.");
+      return;
+    }
+    const p = products.find(prod => prod.dbId === outProdId);
+    if (p && outQty > p.stock) {
+      alert(`Số lượng xuất (${outQty}) vượt quá tồn kho hiện tại (${p.stock}).`);
+      return;
+    }
     try {
-      await apiFetch("/api/inventory/issues", {
+      await apiFetch("/api/inventory/stock-issues", {
         method: "POST",
         body: JSON.stringify({
           ProductId: outProdId,
           Quantity: outQty,
-          Sale: false,
-          CreatedBy: user?.dbId || 1,
-          Reason: outReason
+          Reason: outReason.trim()
         })
       });
-
-      alert("Lập phiếu xuất kho thành công!");
       setShowOutModal(false);
       setOutQty(1);
       setOutReason("Xuất hủy hàng hỏng");
@@ -2985,221 +2920,214 @@ function InvStock() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
-        <KpiCard label="Nhập kho hôm nay" value={fmtM(totalIn)} sub={stockTransactions.filter(t => t.type === "in").length + " phiếu nhập"} trend="up" />
-        <KpiCard label="Xuất kho hôm nay" value={fmtM(totalOut)} sub={stockTransactions.filter(t => t.type === "out").length + " phiếu xuất"} trend="neutral" />
-        <KpiCard label="Chênh lệch" value={fmtM(totalIn - totalOut)} sub="Nhập trừ xuất" trend="up" />
-      </div>
-      <div className="flex items-center justify-between">
-        <div className="flex gap-0.5 p-1 rounded-lg transition-colors duration-200" style={{ background: S.card, border: `1px solid ${S.border}` }}>
-          {([["all", "Tất cả"], ["in", "Nhập kho"], ["out", "Xuất kho"]] as const).map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)}
-              className="px-3 py-1.5 rounded text-xs font-semibold transition-all duration-150"
-              style={tab === key ? { background: S.green, color: "#fff" } : { color: S.muted }}>
-              {label}
+    <div className="flex h-full w-full overflow-hidden relative gap-5">
+      {/* Màn hình chính */}
+      <div className="flex-1 min-w-0 flex flex-col space-y-4 transition-all duration-300">
+        <div className="grid grid-cols-3 gap-4">
+          <KpiCard label="Nhập kho hôm nay" value={fmtM(totalIn)} sub={stockTransactions.filter(t => t.type === "in").length + " phiếu nhập"} trend="up" />
+          <KpiCard label="Xuất kho hôm nay" value={fmtM(totalOut)} sub={stockTransactions.filter(t => t.type === "out").length + " phiếu xuất"} trend="neutral" />
+          <KpiCard label="Chênh lệch" value={fmtM(totalIn - totalOut)} sub="Nhập trừ xuất" trend="up" />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex gap-0.5 p-1 rounded-lg transition-colors duration-200" style={{ background: S.card, border: `1px solid ${S.border}` }}>
+            {([["all", "Tất cả"], ["in", "Nhập kho"], ["out", "Xuất kho"]] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setTab(key)}
+                className="px-3 py-1.5 rounded text-xs font-semibold transition-all duration-150"
+                style={tab === key ? { background: S.green, color: "#fff" } : { color: S.muted }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer"
+              style={{ background: S.card, border: `1px solid ${S.border}`, color: S.blue }}
+              title="Xuất danh sách đang hiển thị ra Excel">
+              <FileSpreadsheet size={13} />Xuất Excel
             </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={exportToExcel} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer"
-            style={{ background: S.card, border: `1px solid ${S.border}`, color: S.blue }}
-            title="Xuất danh sách đang hiển thị ra Excel">
-            <FileSpreadsheet size={13} />Xuất Excel
-          </button>
-          <button onClick={() => setShowInModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer"
-            style={{ background: S.card, border: `1px solid ${S.border}`, color: S.sub }}>
-            <ArrowDownToLine size={13} />Phiếu nhập
-          </button>
-          <button onClick={() => setShowOutModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90" style={{ background: S.green }}>
-            <ArrowUpFromLine size={13} />Phiếu xuất
-          </button>
-        </div>
-      </div>
-      <TableWrap>
-        <thead><tr>{["Phiếu", "Loại", "Ngày giờ", "Sản phẩm", "SL", "ĐVT", "Đơn giá", "Thành tiền", "Đối tác", "NV"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
-        <tbody>
-          {filtered.length === 0 ? (
-            <tr>
-              <td colSpan={10} className="text-center py-6 text-xs" style={{ color: S.muted }}>Không tìm thấy giao dịch kho nào.</td>
-            </tr>
-          ) : (
-            filtered.map((t, i) => (
-              <Tr key={t.id} last={i === filtered.length - 1}>
-                <Td mono>{t.id}</Td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-xs font-semibold"
-                    style={t.type === "in" ? { background: `${S.green}18`, color: S.green } : { background: `${S.amber}18`, color: S.amber }}>
-                    {t.type === "in" ? <ArrowDownToLine size={10} /> : <ArrowUpFromLine size={10} />}
-                    {t.type === "in" ? "Nhập" : "Xuất"}
-                  </div>
-                </td>
-                <Td mono>{t.date} {t.time}</Td>
-                <td className="px-4 py-3 text-sm font-medium max-w-40 truncate" style={{ color: S.text }}>{t.product}</td>
-                <td className="px-4 py-3 text-sm font-mono font-bold" style={{ color: S.text }}>{t.qty}</td>
-                <Td>{t.unit}</Td>
-                <Td mono>{(t.price / 1000).toFixed(0)}k</Td>
-                <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.text }}>{(t.total / 1000000).toFixed(3)}tr</td>
-                <Td>{t.supplier}</Td>
-                <Td>{t.staff}</Td>
-              </Tr>
-            ))
-          )}
-        </tbody>
-      </TableWrap>
-
-      {/* MODAL NHẬP KHO */}
-      {showInModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
-             onClick={() => { setShowInModal(false); setInLines([]); }}>
-          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
-               style={{ background: S.card, borderColor: S.border }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
-              <h3 className="text-base font-bold" style={{ color: S.text }}>Lập phiếu nhập kho</h3>
-              <button type="button" onClick={() => { setShowInModal(false); setInLines([]); }} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
-            </div>
-            
-            <form onSubmit={handleInSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
-              <div>
-                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Nhà cung cấp</label>
-                <input type="text" required value={inSupplier} onChange={e => setInSupplier(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Trạng thái thanh toán</label>
-                  <select value={inPaymentStatus} onChange={e => setInPaymentStatus(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent font-semibold" style={{ borderColor: S.border, color: S.text }}>
-                    <option value={1}>Chưa thanh toán</option>
-                    <option value={2}>Thanh toán một phần</option>
-                    <option value={3}>Đã thanh toán</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Ghi chú phiếu nhập</label>
-                  <input type="text" value={inNotes} onChange={e => setInNotes(e.target.value)} placeholder="Không bắt buộc"
-                    className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
-                </div>
-              </div>
-              <div className="p-3 rounded-lg border space-y-3" style={{ borderColor: S.border, background: `${S.bg}40` }}>
-                <div className="text-xs font-bold" style={{ color: S.text }}>Thêm sản phẩm nhập</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Sản phẩm</label>
-                    <select value={selectedProdId} onChange={e => setSelectedProdId(Number(e.target.value))}
-                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }}>
-                      {products.map(p => <option key={p.dbId} value={p.dbId}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Số lượng</label>
-                    <input type="number" min="1" value={inQty} onChange={e => setInQty(Number(e.target.value))}
-                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Đơn giá mua (VNĐ)</label>
-                    <input type="number" min="0" value={inPrice} onChange={e => setInPrice(Number(e.target.value))}
-                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ngày sản xuất (NSX)</label>
-                    <input type="date" value={inMfg} onChange={e => setInMfg(e.target.value)}
-                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ngày hết hạn (HSD)</label>
-                    <input type="date" value={inExpiry} onChange={e => setInExpiry(e.target.value)}
-                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ghi chú dòng hàng</label>
-                    <input type="text" value={inLineNotes} onChange={e => setInLineNotes(e.target.value)} placeholder="Ví dụ: Quà tặng, lỗi nhẹ..."
-                      className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
-                  </div>
-                </div>
-                <button type="button" onClick={addInLine} className="w-full py-1.5 rounded text-xs font-semibold text-white cursor-pointer" style={{ background: S.blue }}>
-                  Thêm vào phiếu
-                </button>
-              </div>
-
-              {/* Danh sách dòng tạm */}
-              <div className="space-y-1.5">
-                <div className="text-xs font-bold" style={{ color: S.sub }}>Chi tiết phiếu nhập ({inLines.length})</div>
-                <div className="max-h-36 overflow-y-auto border rounded-lg p-2 space-y-1" style={{ borderColor: S.border }}>
-                  {inLines.length === 0 ? (
-                    <div className="text-center text-xs py-3" style={{ color: S.muted }}>Chưa có sản phẩm nào được thêm.</div>
-                  ) : (
-                    inLines.map((l, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs p-1.5 rounded" style={{ background: S.bg }}>
-                        <div className="flex-1 min-w-0 pr-2">
-                          <div className="font-medium truncate" style={{ color: S.text }}>{l.productName}</div>
-                          <div className="text-[10px]" style={{ color: S.muted }}>
-                            SL: {l.quantity} × {fmt(l.unitCost)} {l.manufacturingDate ? `| NSX: ${l.manufacturingDate}` : ""} {l.expiryDate ? `| HSD: ${l.expiryDate}` : ""} {l.notes ? `| Note: ${l.notes}` : ""}
-                          </div>
-                        </div>
-                        <button type="button" onClick={() => removeInLine(idx)} className="text-red-500 font-bold px-1.5 py-0.5 hover:bg-red-500/10 rounded cursor-pointer">✕</button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
-                <button type="button" onClick={() => { setShowInModal(false); setInLines([]); }}
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85" style={{ background: S.border, color: S.text }}>Hủy</button>
-                <button type="submit" className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85" style={{ background: S.green }}>Lập phiếu & Nhập kho</button>
-              </div>
-            </form>
+            <button onClick={() => setShowInModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer"
+              style={{ background: S.card, border: `1px solid ${S.border}`, color: S.sub }}>
+              <ArrowDownToLine size={13} />Phiếu nhập
+            </button>
+            <button onClick={() => setShowOutModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer hover:opacity-90" style={{ background: S.green }}>
+              <ArrowUpFromLine size={13} />Phiếu xuất
+            </button>
           </div>
         </div>
-      )}
+        <TableWrap>
+          <thead><tr>{["Phiếu", "Loại", "Ngày giờ", "Sản phẩm", "SL", "ĐVT", "Đơn giá", "Thành tiền", "Đối tác", "NV"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="text-center py-6 text-xs" style={{ color: S.muted }}>Không tìm thấy giao dịch kho nào.</td>
+              </tr>
+            ) : (
+              filtered.map((t, i) => (
+                <Tr key={t.id} last={i === filtered.length - 1}>
+                  <Td mono>{t.id}</Td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-xs font-semibold"
+                      style={t.type === "in" ? { background: `${S.green}18`, color: S.green } : { background: `${S.amber}18`, color: S.amber }}>
+                      {t.type === "in" ? <ArrowDownToLine size={10} /> : <ArrowUpFromLine size={10} />}
+                      {t.type === "in" ? "Nhập" : "Xuất"}
+                    </div>
+                  </td>
+                  <Td mono>{t.date} {t.time}</Td>
+                  <td className="px-4 py-3 text-sm font-medium max-w-40 truncate" style={{ color: S.text }}>{t.product}</td>
+                  <td className="px-4 py-3 text-sm font-mono font-bold" style={{ color: S.text }}>{t.qty}</td>
+                  <Td>{t.unit}</Td>
+                  <Td mono>{(t.price / 1000).toFixed(0)}k</Td>
+                  <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.text }}>{(t.total / 1000000).toFixed(3)}tr</td>
+                  <Td>{t.supplier}</Td>
+                  <Td>{t.staff}</Td>
+                </Tr>
+              ))
+            )}
+          </tbody>
+        </TableWrap>
+      </div>
 
-      {/* MODAL XUẤT KHO */}
-      {showOutModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
-             onClick={() => setShowOutModal(false)}>
-          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
-               style={{ background: S.card, borderColor: S.border }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
-              <h3 className="text-base font-bold" style={{ color: S.text }}>Lập phiếu xuất kho</h3>
-              <button type="button" onClick={() => setShowOutModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
+      {/* Drawer trượt dạng đẩy (Push Content Layout) - Phiếu Nhập */}
+      <div className={`h-full flex flex-col border-l shadow-2xl transition-all duration-300 overflow-hidden ${
+        showInModal ? 'w-full sm:w-[35%] lg:w-[30%] opacity-100 p-6 border-l shadow-2xl' : 'w-0 opacity-0 p-0 border-l-0 shadow-none'
+      }`} style={{ background: S.card, borderColor: S.border }}>
+        <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+          <h3 className="text-base font-bold" style={{ color: S.text }}>Lập phiếu nhập kho</h3>
+          <button type="button" onClick={() => { setShowInModal(false); setInLines([]); }} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
+        </div>
+        
+        <form onSubmit={handleInSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
+          <div>
+            <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Nhà cung cấp</label>
+            <input type="text" required value={inSupplier} onChange={e => setInSupplier(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Trạng thái thanh toán</label>
+              <select value={inPaymentStatus} onChange={e => setInPaymentStatus(Number(e.target.value))}
+                className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent font-semibold" style={{ borderColor: S.border, color: S.text }}>
+                <option value={1}>Chưa thanh toán</option>
+                <option value={2}>Thanh toán một phần</option>
+                <option value={3}>Đã thanh toán</option>
+              </select>
             </div>
-            
-            <form onSubmit={handleOutSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
+            <div>
+              <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Ghi chú phiếu nhập</label>
+              <input type="text" value={inNotes} onChange={e => setInNotes(e.target.value)} placeholder="Không bắt buộc"
+                className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+            </div>
+          </div>
+          <div className="p-3 rounded-lg border space-y-3" style={{ borderColor: S.border, background: `${S.bg}40` }}>
+            <div className="text-xs font-bold" style={{ color: S.text }}>Thêm sản phẩm nhập</div>
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Sản phẩm xuất</label>
-                <select value={outProdId} onChange={e => setOutProdId(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }}>
-                  {products.filter(p => p.stock > 0).map(p => <option key={p.dbId} value={p.dbId}>{p.name} (Tồn: {p.stock})</option>)}
-                  {products.filter(p => p.stock > 0).length === 0 && <option value={0}>Không có sản phẩm nào còn hàng</option>}
+                <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Sản phẩm</label>
+                <select value={selectedProdId} onChange={e => setSelectedProdId(Number(e.target.value))}
+                  className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }}>
+                  {products.map(p => <option key={p.dbId} value={p.dbId}>{p.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Số lượng xuất</label>
-                <input type="number" required min="1" value={outQty} onChange={e => setOutQty(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Số lượng</label>
+                <input type="number" min="1" value={inQty} onChange={e => setInQty(Number(e.target.value))}
+                  className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Đơn giá mua (VNĐ)</label>
+                <input type="number" min="0" value={inPrice} onChange={e => setInPrice(Number(e.target.value))}
+                  className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
               </div>
               <div>
-                <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Lý do xuất kho</label>
-                <input type="text" required value={outReason} onChange={e => setOutReason(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+                <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ngày sản xuất (NSX)</label>
+                <input type="date" value={inMfg} onChange={e => setInMfg(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
               </div>
-              
-              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
-                <button type="button" onClick={() => setShowOutModal(false)}
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer" style={{ background: S.border, color: S.text }}>Hủy</button>
-                <button type="submit" className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer" style={{ background: S.green }}>Lập phiếu & Xuất kho</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ngày hết hạn (HSD)</label>
+                <input type="date" value={inExpiry} onChange={e => setInExpiry(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
               </div>
-            </form>
+              <div>
+                <label className="text-[10px] uppercase font-bold block mb-1" style={{ color: S.muted }}>Ghi chú dòng hàng</label>
+                <input type="text" value={inLineNotes} onChange={e => setInLineNotes(e.target.value)} placeholder="Ví dụ: Quà tặng, lỗi nhẹ..."
+                  className="w-full px-2 py-1.5 text-xs rounded border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+              </div>
+            </div>
+            <button type="button" onClick={addInLine} className="w-full py-1.5 rounded text-xs font-semibold text-white cursor-pointer" style={{ background: S.blue }}>
+              Thêm vào phiếu
+            </button>
           </div>
+
+          {/* Danh sách dòng tạm */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-bold" style={{ color: S.sub }}>Chi tiết phiếu nhập ({inLines.length})</div>
+            <div className="max-h-36 overflow-y-auto border rounded-lg p-2 space-y-1" style={{ borderColor: S.border }}>
+              {inLines.length === 0 ? (
+                <div className="text-center text-xs py-3" style={{ color: S.muted }}>Chưa có sản phẩm nào được thêm.</div>
+              ) : (
+                inLines.map((l, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs p-1.5 rounded" style={{ background: S.bg }}>
+                    <div className="flex-1 min-w-0 pr-2">
+                      <div className="font-medium truncate" style={{ color: S.text }}>{l.productName}</div>
+                      <div className="text-[10px]" style={{ color: S.muted }}>
+                        SL: {l.quantity} × {fmt(l.unitCost)} {l.manufacturingDate ? `| NSX: ${l.manufacturingDate}` : ""} {l.expiryDate ? `| HSD: ${l.expiryDate}` : ""} {l.notes ? `| Note: ${l.notes}` : ""}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => removeInLine(idx)} className="text-red-500 font-bold px-1.5 py-0.5 hover:bg-red-500/10 rounded cursor-pointer">✕</button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+            <button type="button" onClick={() => { setShowInModal(false); setInLines([]); }}
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 font-semibold" style={{ background: S.border, color: S.text }}>Hủy</button>
+            <button type="submit" className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 font-semibold" style={{ background: S.green }}>Lập phiếu & Nhập kho</button>
+          </div>
+        </form>
+      </div>
+
+      {/* Drawer trượt dạng đẩy (Push Content Layout) - Phiếu Xuất */}
+      <div className={`h-full flex flex-col border-l shadow-2xl transition-all duration-300 overflow-hidden ${
+        showOutModal ? 'w-full sm:w-[35%] lg:w-[30%] opacity-100 p-6 border-l shadow-2xl' : 'w-0 opacity-0 p-0 border-l-0 shadow-none'
+      }`} style={{ background: S.card, borderColor: S.border }}>
+        <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+          <h3 className="text-base font-bold" style={{ color: S.text }}>Lập phiếu xuất kho</h3>
+          <button type="button" onClick={() => setShowOutModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
         </div>
-      )}
+        
+        <form onSubmit={handleOutSubmit} className="flex-1 overflow-y-auto pr-2 space-y-4">
+          <div>
+            <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Sản phẩm xuất</label>
+            <select value={outProdId} onChange={e => setOutProdId(Number(e.target.value))}
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent font-semibold" style={{ borderColor: S.border, color: S.text }}>
+              {products.filter(p => p.stock > 0).map(p => <option key={p.dbId} value={p.dbId}>{p.name} (Tồn: {p.stock})</option>)}
+              {products.filter(p => p.stock > 0).length === 0 && <option value={0}>Không có sản phẩm nào còn hàng</option>}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Số lượng xuất</label>
+            <input type="number" required min="1" value={outQty} onChange={e => setOutQty(Number(e.target.value))}
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+          </div>
+          <div>
+            <label className="text-xs font-bold block mb-1.5" style={{ color: S.sub }}>Lý do xuất kho</label>
+            <input type="text" required value={outReason} onChange={e => setOutReason(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none bg-transparent" style={{ borderColor: S.border, color: S.text }} />
+          </div>
+          
+          <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+            <button type="button" onClick={() => setShowOutModal(false)}
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer font-semibold" style={{ background: S.border, color: S.text }}>Hủy</button>
+            <button type="submit" className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer" style={{ background: S.green }}>Lập phiếu & Xuất kho</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -3729,20 +3657,16 @@ function SysUsers() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() && modalMode === "add") {
-      setError("Vui lòng nhập tên đăng nhập.");
+    if (!username.trim() || !fullName.trim() || !email.trim()) {
+      setError("Vui lòng nhập đầy đủ các thông tin bắt buộc.");
       return;
     }
     if (modalMode === "add" && !password.trim()) {
-      setError("Vui lòng nhập mật khẩu.");
+      setError("Vui lòng nhập mật khẩu khởi tạo.");
       return;
     }
-    if (!fullName.trim()) {
-      setError("Vui lòng nhập họ và tên.");
-      return;
-    }
-    if (!email.trim()) {
-      setError("Vui lòng nhập email.");
+    if (modalMode === "edit" && !reason.trim()) {
+      setError("Vui lòng nhập lý do cập nhật thông tin.");
       return;
     }
     setSaving(true);
@@ -3801,8 +3725,11 @@ function SysUsers() {
     setDeleting(true);
     setError("");
     try {
-      await apiFetch(`/api/users/${deleteUser.id}?reason=${encodeURIComponent(deleteReason.trim())}&version=${deleteUser.version}`, {
-        method: "DELETE"
+      await apiFetch(`/api/users/${deleteUser.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({
+          Reason: deleteReason.trim()
+        })
       });
       setShowDeleteModal(false);
       fetchUsers();
@@ -3824,196 +3751,194 @@ function SysUsers() {
   };
 
   return (
-    <div className="space-y-4">
-      <SectionHeader action={<AddBtn label="Thêm tài khoản" onClick={openAdd} />}>
-        <div className="flex gap-2 flex-wrap items-center">
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm theo username, tên, email..."
-            className="text-xs px-3 py-1.5 rounded-lg outline-none w-60 font-semibold"
-            style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }} />
-          
-          <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-            className="text-xs px-3 py-1.5 rounded-lg outline-none font-semibold cursor-pointer"
-            style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }}>
-            <option value="">Tất cả vai trò</option>
-            <option value="OWNER">Chủ siêu thị</option>
-            <option value="STORE_MANAGER">Quản lý cửa hàng</option>
-            <option value="WAREHOUSE_STAFF">Thủ kho</option>
-            <option value="CASHIER">Thu ngân</option>
-            <option value="SALES_STAFF">Nhân viên bán hàng</option>
-            <option value="ACCOUNTANT">Kế toán viên</option>
-            <option value="EMPLOYEE">Nhân viên</option>
-          </select>
-
-          <select value={activeFilter} onChange={e => setActiveFilter(e.target.value)}
-            className="text-xs px-3 py-1.5 rounded-lg outline-none font-semibold cursor-pointer"
-            style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }}>
-            <option value="">Tất cả trạng thái</option>
-            <option value="true">Đang hoạt động</option>
-            <option value="false">Đang bị khóa</option>
-          </select>
-        </div>
-      </SectionHeader>
-
-      <TableWrap>
-        <thead>
-          <tr>
-            {["Tên đăng nhập", "Họ và tên", "Vai trò", "Email", "Số điện thoại", "Trạng thái", "Thao tác"].map(h => <Th key={h}>{h}</Th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <tr>
-              <td colSpan={7} className="text-center py-6 text-xs" style={{ color: S.muted }}>Đang tải dữ liệu...</td>
-            </tr>
-          ) : users.length === 0 ? (
-            <tr>
-              <td colSpan={7} className="text-center py-6 text-xs" style={{ color: S.muted }}>Không tìm thấy tài khoản nào.</td>
-            </tr>
-          ) : (
-            users.map((u, i) => {
-              const rCfg = roleMap[u.role] || { label: u.role, color: S.muted, bg: `${S.muted}18` };
-              return (
-                <Tr key={u.id} last={i === users.length - 1}>
-                  <td className="px-4 py-3 text-xs font-mono font-bold" style={{ color: S.green }}>{u.username}</td>
-                  <td className="px-4 py-3 text-xs font-medium" style={{ color: S.text }}>{u.fullName}</td>
-                  <td className="px-4 py-3"><Badge label={rCfg.label} color={rCfg.color} bg={rCfg.bg} /></td>
-                  <td className="px-4 py-3 text-xs" style={{ color: S.sub }}>{u.email}</td>
-                  <Td mono>{u.phoneNumber || "—"}</Td>
-                  <td className="px-4 py-3">
-                    {u.isActive ? (
-                      <Badge label="Hoạt động" color={S.green} bg={`${S.green}18`} />
-                    ) : (
-                      <Badge label="Khóa" color={S.red} bg={`${S.red}18`} />
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(u)} className="p-1 rounded hover:bg-slate-700/10 dark:hover:bg-slate-300/10 transition-colors cursor-pointer" style={{ color: S.blue }}>
-                        <Edit2 size={12} />
-                      </button>
-                      <button onClick={() => openDelete(u)} className="p-1 rounded hover:bg-slate-700/10 dark:hover:bg-slate-300/10 transition-colors cursor-pointer" style={{ color: S.red }}>
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </td>
-                </Tr>
-              );
-            })
-          )}
-        </tbody>
-      </TableWrap>
-
-      {/* Modal Add/Edit */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
-             onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
-               style={{ background: S.card, borderColor: S.border }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
-              <h4 className="text-base font-bold" style={{ color: S.text }}>
-                {modalMode === "add" ? "Thêm tài khoản mới" : "Cập nhật tài khoản"}
-              </h4>
-              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
-            </div>
+    <div className="flex h-full w-full overflow-hidden relative gap-5">
+      {/* Màn hình chính */}
+      <div className="flex-1 min-w-0 flex flex-col space-y-4 transition-all duration-300">
+        <SectionHeader action={<AddBtn label="Thêm tài khoản" onClick={openAdd} />}>
+          <div className="flex gap-2 flex-wrap items-center">
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm theo username, tên, email..."
+              className="text-xs px-3 py-1.5 rounded-lg outline-none w-60 font-semibold"
+              style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }} />
             
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
-              {error && (
-                <div className="p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: `${S.red}18`, color: S.red }}>
-                  <AlertCircle size={14} />
-                  <span>{error}</span>
-                </div>
-              )}
+            <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+              className="text-xs px-3 py-1.5 rounded-lg outline-none font-semibold cursor-pointer"
+              style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }}>
+              <option value="">Tất cả vai trò</option>
+              <option value="OWNER">Chủ siêu thị</option>
+              <option value="STORE_MANAGER">Quản lý cửa hàng</option>
+              <option value="WAREHOUSE_STAFF">Thủ kho</option>
+              <option value="CASHIER">Thu ngân</option>
+              <option value="SALES_STAFF">Nhân viên bán hàng</option>
+              <option value="ACCOUNTANT">Kế toán viên</option>
+              <option value="EMPLOYEE">Nhân viên thường</option>
+            </select>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Tên đăng nhập</label>
-                  <input value={username} onChange={e => setUsername(e.target.value)} disabled={modalMode === "edit"}
-                    placeholder="Nhập username..."
-                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
-                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Họ và tên</label>
-                  <input value={fullName} onChange={e => setFullName(e.target.value)}
-                    placeholder="Nhập họ tên..."
-                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
-                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Email</label>
-                  <input value={email} onChange={e => setEmail(e.target.value)} type="email"
-                    placeholder="name@erpmini.vn"
-                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
-                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Số điện thoại</label>
-                  <input value={phone} onChange={e => setPhone(e.target.value)}
-                    placeholder="Nhập SĐT..."
-                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
-                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Vai trò</label>
-                  <select value={role} onChange={e => setRole(e.target.value)}
-                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all shadow-sm"
-                    style={{ background: S.bg, borderColor: S.border, color: S.text }}>
-                    <option value="OWNER">Chủ siêu thị (OWNER)</option>
-                    <option value="STORE_MANAGER">Quản lý (STORE_MANAGER)</option>
-                    <option value="WAREHOUSE_STAFF">Thủ kho (WAREHOUSE_STAFF)</option>
-                    <option value="CASHIER">Thu ngân (CASHIER)</option>
-                    <option value="SALES_STAFF">Nhân viên bán hàng (SALES_STAFF)</option>
-                    <option value="ACCOUNTANT">Kế toán viên (ACCOUNTANT)</option>
-                    <option value="EMPLOYEE">Nhân viên khác (EMPLOYEE)</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Trạng thái</label>
-                  <div className="flex items-center gap-2 h-[34px]">
-                    <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} id="isActiveCheckbox" className="w-4 h-4 cursor-pointer" />
-                    <label htmlFor="isActiveCheckbox" className="text-xs font-semibold select-none cursor-pointer" style={{ color: S.text }}>Cho phép đăng nhập</label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>
-                  {modalMode === "add" ? "Mật khẩu *" : "Mật khẩu mới (bỏ trống nếu giữ nguyên)"}
-                </label>
-                <input value={password} onChange={e => setPassword(e.target.value)} type="password"
-                  placeholder={modalMode === "add" ? "Nhập mật khẩu..." : "Nhập mật khẩu mới..."}
-                  className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
-                  style={{ background: S.bg, borderColor: S.border, color: S.text }} />
-              </div>
-
-              {modalMode === "edit" && (
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Lý do cập nhật <span className="text-red-500">*</span></label>
-                  <input value={reason} onChange={e => setReason(e.target.value)} required
-                    placeholder="Nhập lý do cập nhật..."
-                    className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
-                    style={{ background: S.bg, borderColor: S.border, color: S.text }} />
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
-                <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer"
-                  style={{ background: S.border, color: S.text }}>Hủy</button>
-                <button type="submit" disabled={saving} className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
-                  style={{ background: S.green, opacity: saving ? 0.7 : 1 }}>{saving ? "Đang lưu..." : "Lưu"}</button>
-              </div>
-            </form>
+            <select value={activeFilter} onChange={e => setActiveFilter(e.target.value)}
+              className="text-xs px-3 py-1.5 rounded-lg outline-none font-semibold cursor-pointer"
+              style={{ background: S.sidebar, border: `1px solid ${S.border}`, color: S.text }}>
+              <option value="">Tất cả trạng thái</option>
+              <option value="true">Đang hoạt động</option>
+              <option value="false">Đang bị khóa</option>
+            </select>
           </div>
+        </SectionHeader>
+
+        <TableWrap>
+          <thead>
+            <tr>
+              {["Tên đăng nhập", "Họ và tên", "Vai trò", "Email", "Số điện thoại", "Trạng thái", "Thao tác"].map(h => <Th key={h}>{h}</Th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="text-center py-6 text-xs" style={{ color: S.muted }}>Đang tải dữ liệu...</td>
+              </tr>
+            ) : users.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-6 text-xs" style={{ color: S.muted }}>Không tìm thấy tài khoản nào.</td>
+              </tr>
+            ) : (
+              users.map((u, i) => {
+                const rCfg = roleMap[u.role] || { label: u.role, color: S.muted, bg: `${S.muted}18` };
+                return (
+                  <Tr key={u.id} last={i === users.length - 1}>
+                    <td className="px-4 py-3 text-xs font-mono font-bold" style={{ color: S.green }}>{u.username}</td>
+                    <td className="px-4 py-3 text-xs font-medium" style={{ color: S.text }}>{u.fullName}</td>
+                    <td className="px-4 py-3"><Badge label={rCfg.label} color={rCfg.color} bg={rCfg.bg} /></td>
+                    <td className="px-4 py-3 text-xs" style={{ color: S.sub }}>{u.email}</td>
+                    <Td mono>{u.phoneNumber || "—"}</Td>
+                    <td className="px-4 py-3">
+                      {u.isActive ? (
+                        <Badge label="Hoạt động" color={S.green} bg={`${S.green}18`} />
+                      ) : (
+                        <Badge label="Khóa" color={S.red} bg={`${S.red}18`} />
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button onClick={() => openEdit(u)} className="p-1 rounded hover:bg-slate-700/10 dark:hover:bg-slate-300/10 transition-colors cursor-pointer" style={{ color: S.blue }}>
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={() => openDelete(u)} className="p-1 rounded hover:bg-slate-700/10 dark:hover:bg-slate-300/10 transition-colors cursor-pointer" style={{ color: S.red }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </Tr>
+                );
+              })
+            )}
+          </tbody>
+        </TableWrap>
+      </div>
+
+      {/* Drawer trượt dạng đẩy (Push Content Layout) */}
+      <div className={`h-full flex flex-col border-l shadow-2xl transition-all duration-300 overflow-hidden ${
+        showModal ? 'w-full sm:w-[35%] lg:w-[30%] opacity-100 p-6 border-l shadow-2xl' : 'w-0 opacity-0 p-0 border-l-0 shadow-none'
+      }`} style={{ background: S.card, borderColor: S.border }}>
+        <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+          <h4 className="text-base font-bold" style={{ color: S.text }}>
+            {modalMode === "add" ? "Thêm tài khoản mới" : "Cập nhật tài khoản"}
+          </h4>
+          <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
         </div>
-      )}
+        
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
+          {error && (
+            <div className="p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: `${S.red}18`, color: S.red }}>
+              <AlertCircle size={14} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Tên đăng nhập</label>
+              <input value={username} onChange={e => setUsername(e.target.value)} disabled={modalMode === "edit"}
+                placeholder="Nhập username..."
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Họ và tên</label>
+              <input value={fullName} onChange={e => setFullName(e.target.value)}
+                placeholder="Nhập họ tên..."
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Email</label>
+              <input value={email} onChange={e => setEmail(e.target.value)} type="email"
+                placeholder="name@erpmini.vn"
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Số điện thoại</label>
+              <input value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="Nhập SĐT..."
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Vai trò</label>
+              <select value={role} onChange={e => setRole(e.target.value)}
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all shadow-sm font-semibold"
+                style={{ background: S.bg, borderColor: S.border, color: S.text }}>
+                <option value="OWNER">Chủ siêu thị (OWNER)</option>
+                <option value="STORE_MANAGER">Quản lý (STORE_MANAGER)</option>
+                <option value="WAREHOUSE_STAFF">Thủ kho (WAREHOUSE_STAFF)</option>
+                <option value="CASHIER">Thu ngân (CASHIER)</option>
+                <option value="SALES_STAFF">Nhân viên bán hàng (SALES_STAFF)</option>
+                <option value="ACCOUNTANT">Kế toán viên (ACCOUNTANT)</option>
+                <option value="EMPLOYEE">Nhân viên khác (EMPLOYEE)</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Trạng thái</label>
+              <div className="flex items-center gap-2 h-[34px]">
+                <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} id="isActiveCheckbox" className="w-4 h-4 cursor-pointer" />
+                <label htmlFor="isActiveCheckbox" className="text-xs font-semibold select-none cursor-pointer" style={{ color: S.text }}>Cho phép đăng nhập</label>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>
+              {modalMode === "add" ? "Mật khẩu *" : "Mật khẩu mới (bỏ trống nếu giữ nguyên)"}
+            </label>
+            <input value={password} onChange={e => setPassword(e.target.value)} type="password"
+              placeholder={modalMode === "add" ? "Nhập mật khẩu..." : "Nhập mật khẩu mới..."}
+              className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+              style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+          </div>
+
+          {modalMode === "edit" && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: S.muted }}>Lý do cập nhật <span className="text-red-500">*</span></label>
+              <input value={reason} onChange={e => setReason(e.target.value)} required
+                placeholder="Nhập lý do cập nhật..."
+                className="w-full text-xs px-3 py-2 rounded-lg outline-none font-semibold border transition-all"
+                style={{ background: S.bg, borderColor: S.border, color: S.text }} />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+            <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer font-semibold"
+              style={{ background: S.border, color: S.text }}>Hủy</button>
+            <button type="submit" disabled={saving} className="px-5 py-2.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
+              style={{ background: S.green, opacity: saving ? 0.7 : 1 }}>{saving ? "Đang lưu..." : "Lưu"}</button>
+          </div>
+        </form>
+      </div>
 
       {/* Modal Delete */}
       {showDeleteModal && (
@@ -4043,7 +3968,7 @@ function SysUsers() {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowDeleteModal(false)} className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer"
+                <button type="button" onClick={() => setShowDeleteModal(false)} className="px-4 py-2 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 cursor-pointer font-semibold"
                   style={{ background: S.border, color: S.text }}>Hủy</button>
                 <button type="submit" disabled={deleting} className="px-4 py-2 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-85 cursor-pointer"
                   style={{ background: S.red, opacity: deleting ? 0.7 : 1 }}>{deleting ? "Đang xóa..." : "Xóa"}</button>
