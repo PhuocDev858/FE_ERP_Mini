@@ -1234,312 +1234,311 @@ function HREmployees() {
   );
 
   return (
-    <div className="space-y-4">
-      <SectionHeader action={isOwner ? <AddBtn label="Thêm nhân viên" onClick={openAdd} /> : null}>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Tìm theo tên, phòng ban..."
-          className="text-sm px-3 py-2 rounded-lg outline-none w-60 transition-colors duration-200"
-          style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }} />
-      </SectionHeader>
-      <TableWrap>
-        <thead>
-          <tr>
-            <Th>Mã NV</Th>
-            <Th>Họ tên</Th>
-            <Th>Phòng ban</Th>
-            <Th>Chức vụ</Th>
-            <Th>CCCD / CMND</Th>
-            <Th>Ngày vào</Th>
-            <Th>Lương cơ bản</Th>
-            <Th>Trạng thái</Th>
-            {isOwner && <Th>Thao tác</Th>}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((e, i) => (
-            <Tr key={e.id} last={i === filtered.length - 1}>
-              <Td mono>{e.id}</Td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: `${S.green}25`, color: S.green }}>
-                    {e.name.split(" ").pop()?.charAt(0)}
-                  </div>
-                  <span className="text-sm font-medium" style={{ color: S.text }}>{e.name}</span>
-                </div>
-              </td>
-              <Td>{e.dept}</Td>
-              <Td>{e.role}</Td>
-              <Td mono>{e.phone ? (e.phone.length > 4 ? e.phone.replace(/^(\d{3})\d+(\d{1})$/, "$1xxx...xxx$2") : e.phone) : "Chưa cập nhật"}</Td>
-              <Td mono>{e.joined}</Td>
-              <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.text }}>{fmt(e.salary)}</td>
-              <td className="px-4 py-3">
-                <Badge label={e.status === "active" ? "Đang làm" : "Đã nghỉ"}
-                  color={e.status === "active" ? S.green : S.muted}
-                  bg={e.status === "active" ? `${S.green}18` : `${S.muted}20`} />
-              </td>
-              {isOwner && (
+    <div className="flex h-full w-full overflow-hidden relative gap-5">
+      {/* Màn hình chính */}
+      <div className="flex-1 min-w-0 flex flex-col space-y-4 transition-all duration-300">
+        <SectionHeader action={isOwner ? <AddBtn label="Thêm nhân viên" onClick={openAdd} /> : null}>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Tìm theo tên, phòng ban..."
+            className="text-sm px-3 py-2 rounded-lg outline-none w-60 transition-colors duration-200"
+            style={{ background: S.card, border: `1px solid ${S.border}`, color: S.text }} />
+        </SectionHeader>
+        <TableWrap>
+          <thead>
+            <tr>
+              <Th>Mã NV</Th>
+              <Th>Họ tên</Th>
+              <Th>Phòng ban</Th>
+              <Th>Chức vụ</Th>
+              <Th>CCCD / CMND</Th>
+              <Th>Ngày vào</Th>
+              <Th>Lương cơ bản</Th>
+              <Th>Trạng thái</Th>
+              {isOwner && <Th>Thao tác</Th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((e, i) => (
+              <Tr key={e.id} last={i === filtered.length - 1}>
+                <Td mono>{e.id}</Td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => openEdit(e)} 
-                      className="p-1 rounded transition-colors hover:bg-black/10" 
-                      style={{ color: S.muted }} 
-                      title="Sửa"
-                    >
-                      <Edit2 size={13} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(e)} 
-                      className="p-1 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" 
-                      style={{ color: S.red }} 
-                      title="Xóa"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: `${S.green}25`, color: S.green }}>
+                      {e.name.split(" ").pop()?.charAt(0)}
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: S.text }}>{e.name}</span>
                   </div>
                 </td>
-              )}
-            </Tr>
-          ))}
-        </tbody>
-      </TableWrap>
+                <Td>{e.dept}</Td>
+                <Td>{e.role}</Td>
+                <Td mono>{e.phone ? (e.phone.length > 4 ? e.phone.replace(/^(\d{3})\d+(\d{1})$/, "$1xxx...xxx$2") : e.phone) : "Chưa cập nhật"}</Td>
+                <Td mono>{e.joined}</Td>
+                <td className="px-4 py-3 text-sm font-mono font-semibold" style={{ color: S.text }}>{fmt(e.salary)}</td>
+                <td className="px-4 py-3">
+                  <Badge label={e.status === "active" ? "Đang làm" : "Đã nghỉ"}
+                    color={e.status === "active" ? S.green : S.muted}
+                    bg={e.status === "active" ? `${S.green}18` : `${S.muted}20`} />
+                </td>
+                {isOwner && (
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => openEdit(e)} 
+                        className="p-1 rounded transition-colors hover:bg-black/10" 
+                        style={{ color: S.muted }} 
+                        title="Sửa"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(e)} 
+                        className="p-1 rounded transition-colors hover:bg-black/10 text-red-500 hover:text-red-600" 
+                        style={{ color: S.red }} 
+                        title="Xóa"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </Tr>
+            ))}
+          </tbody>
+        </TableWrap>
+      </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
-             onClick={() => setShowModal(false)}>
-          <div className="w-full sm:w-[35%] lg:w-[30%] h-full flex flex-col p-6 shadow-2xl border-l transition-all duration-300 animate-in slide-in-from-right duration-300"
-               style={{ background: S.card, borderColor: S.border }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
-              <h4 className="text-base font-bold" style={{ color: S.text }}>
-                {modalMode === "add" ? "Thêm nhân viên mới" : "Sửa hồ sơ nhân viên"}
-              </h4>
-              <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
-            </div>
-            
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Họ và tên</label>
-                <input 
-                  type="text" 
-                  value={fullName} 
-                  onChange={e => setFullName(e.target.value)}
-                  placeholder="Ví dụ: Nguyễn Văn A"
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số CCCD / CMND</label>
-                <input 
-                  type="text" 
-                  value={nationalId} 
-                  onChange={e => setNationalId(e.target.value)}
-                  placeholder="Nhập số CCCD..."
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số tài khoản ngân hàng</label>
-                  <input 
-                    type="text" 
-                    value={bankAccountNumber} 
-                    onChange={e => setBankAccountNumber(e.target.value)}
-                    placeholder="Số tài khoản..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Tên ngân hàng</label>
-                  <input 
-                    type="text" 
-                    value={bankName} 
-                    onChange={e => setBankName(e.target.value)}
-                    placeholder="Ví dụ: VCB, TCB..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Ngày tuyển dụng</label>
-                  <input 
-                    type="date" 
-                    value={hireDate} 
-                    onChange={e => setHireDate(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Ngày thôi việc</label>
-                  <input 
-                    type="date" 
-                    value={terminationDate} 
-                    onChange={e => setTerminationDate(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                    disabled={modalMode === "add"}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số phép năm</label>
-                <input 
-                  type="number" 
-                  value={annualLeaveBalance} 
-                  onChange={e => setAnnualLeaveBalance(Number(e.target.value))}
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phòng ban</label>
-                  <select 
-                    value={department} 
-                    onChange={e => setDepartment(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    <option value="Management">Ban Quản lý</option>
-                    <option value="Store">Cửa hàng</option>
-                    <option value="Warehouse">Kho vận</option>
-                    <option value="POS">Bán hàng</option>
-                    <option value="Accounting">Kế toán</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Chức vụ</label>
-                  <select 
-                    value={position} 
-                    onChange={e => setPosition(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    <option value="Owner">Chủ siêu thị</option>
-                    <option value="Store Manager">Quản lý cửa hàng</option>
-                    <option value="Warehouse Staff">Thủ kho</option>
-                    <option value="Cashier">Thu ngân</option>
-                    <option value="Accountant">Kế toán viên</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Vai trò phân quyền</label>
-                  <select 
-                    value={empRole} 
-                    onChange={e => setEmpRole(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  >
-                    <option value="OWNER">Chủ siêu thị (OWNER)</option>
-                    <option value="STORE_MANAGER">Quản lý (STORE_MANAGER)</option>
-                    <option value="WAREHOUSE_STAFF">Thủ kho (WAREHOUSE_STAFF)</option>
-                    <option value="ACCOUNTANT">Kế toán (ACCOUNTANT)</option>
-                    <option value="CASHIER">Thu ngân (CASHIER)</option>
-                    <option value="EMPLOYEE">Nhân viên thường (EMPLOYEE)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Trạng thái</label>
-                  <select 
-                    value={empStatus} 
-                    onChange={e => setEmpStatus(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                    disabled={modalMode === "add"}
-                  >
-                    <option value="ACTIVE">Đang làm việc</option>
-                    <option value="TERMINATED">Đã nghỉ việc (TERMINATED)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lương cơ bản</label>
-                <input 
-                  type="number" 
-                  value={baseSalary} 
-                  onChange={e => setBaseSalary(Number(e.target.value))}
-                  className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                  style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phụ cấp ăn trưa</label>
-                  <input 
-                    type="number" 
-                    value={mealAllowance} 
-                    onChange={e => setMealAllowance(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phụ cấp chuyên cần</label>
-                  <input 
-                    type="number" 
-                    value={attendanceAllowance} 
-                    onChange={e => setAttendanceAllowance(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              </div>
-
-              {modalMode === "edit" && (
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lý do thay đổi hồ sơ</label>
-                  <input 
-                    type="text" 
-                    value={editReason} 
-                    onChange={e => setEditReason(e.target.value)}
-                    placeholder="Nhập lý do thay đổi..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
-                  />
-                </div>
-              )}
-
-              {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)}
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
-                  style={{ background: S.border, color: S.text }}
-                  disabled={saving}
-                >
-                  Hủy
-                </button>
-                <button 
-                  type="submit" 
-                  className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
-                  style={{ background: S.green }}
-                  disabled={saving}
-                >
-                  {saving ? "Đang lưu..." : "Lưu"}
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Drawer trượt dạng đẩy (Push Content Layout) */}
+      <div className={`h-full flex flex-col border-l shadow-2xl transition-all duration-300 overflow-hidden ${
+        showModal ? 'w-full sm:w-[35%] lg:w-[30%] opacity-100 p-6 border-l shadow-2xl' : 'w-0 opacity-0 p-0 border-l-0 shadow-none'
+      }`} style={{ background: S.card, borderColor: S.border }}>
+        <div className="flex justify-between items-center mb-5 pb-3 border-b" style={{ borderColor: S.border }}>
+          <h4 className="text-base font-bold" style={{ color: S.text }}>
+            {modalMode === "add" ? "Thêm nhân viên mới" : "Sửa hồ sơ nhân viên"}
+          </h4>
+          <button type="button" onClick={() => setShowModal(false)} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5" style={{ color: S.muted }}>✕ Đóng</button>
         </div>
-      )}
+        
+        <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-2 space-y-4">
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Họ và tên</label>
+            <input 
+              type="text" 
+              value={fullName} 
+              onChange={e => setFullName(e.target.value)}
+              placeholder="Ví dụ: Nguyễn Văn A"
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số CCCD / CMND</label>
+            <input 
+              type="text" 
+              value={nationalId} 
+              onChange={e => setNationalId(e.target.value)}
+              placeholder="Nhập số CCCD..."
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số tài khoản ngân hàng</label>
+              <input 
+                type="text" 
+                value={bankAccountNumber} 
+                onChange={e => setBankAccountNumber(e.target.value)}
+                placeholder="Số tài khoản..."
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Tên ngân hàng</label>
+              <input 
+                type="text" 
+                value={bankName} 
+                onChange={e => setBankName(e.target.value)}
+                placeholder="Ví dụ: VCB, TCB..."
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Ngày tuyển dụng</label>
+              <input 
+                type="date" 
+                value={hireDate} 
+                onChange={e => setHireDate(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Ngày thôi việc</label>
+              <input 
+                type="date" 
+                value={terminationDate} 
+                onChange={e => setTerminationDate(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                disabled={modalMode === "add"}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Số phép năm</label>
+            <input 
+              type="number" 
+              value={annualLeaveBalance} 
+              onChange={e => setAnnualLeaveBalance(Number(e.target.value))}
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phòng ban</label>
+              <select 
+                value={department} 
+                onChange={e => setDepartment(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              >
+                <option value="Management">Ban Quản lý</option>
+                <option value="Store">Cửa hàng</option>
+                <option value="Warehouse">Kho vận</option>
+                <option value="POS">Bán hàng</option>
+                <option value="Accounting">Kế toán</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Chức vụ</label>
+              <select 
+                value={position} 
+                onChange={e => setPosition(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              >
+                <option value="Owner">Chủ siêu thị</option>
+                <option value="Store Manager">Quản lý cửa hàng</option>
+                <option value="Warehouse Staff">Thủ kho</option>
+                <option value="Cashier">Thu ngân</option>
+                <option value="Accountant">Kế toán viên</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Vai trò phân quyền</label>
+              <select 
+                value={empRole} 
+                onChange={e => setEmpRole(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              >
+                <option value="OWNER">Chủ siêu thị (OWNER)</option>
+                <option value="STORE_MANAGER">Quản lý (STORE_MANAGER)</option>
+                <option value="WAREHOUSE_STAFF">Thủ kho (WAREHOUSE_STAFF)</option>
+                <option value="ACCOUNTANT">Kế toán (ACCOUNTANT)</option>
+                <option value="CASHIER">Thu ngân (CASHIER)</option>
+                <option value="EMPLOYEE">Nhân viên thường (EMPLOYEE)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Trạng thái</label>
+              <select 
+                value={empStatus} 
+                onChange={e => setEmpStatus(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-semibold"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+                disabled={modalMode === "add"}
+              >
+                <option value="ACTIVE">Đang làm việc</option>
+                <option value="TERMINATED">Đã nghỉ việc (TERMINATED)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lương cơ bản</label>
+            <input 
+              type="number" 
+              value={baseSalary} 
+              onChange={e => setBaseSalary(Number(e.target.value))}
+              className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+              style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phụ cấp ăn trưa</label>
+              <input 
+                type="number" 
+                value={mealAllowance} 
+                onChange={e => setMealAllowance(Number(e.target.value))}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Phụ cấp chuyên cần</label>
+              <input 
+                type="number" 
+                value={attendanceAllowance} 
+                onChange={e => setAttendanceAllowance(Number(e.target.value))}
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none font-mono"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          </div>
+
+          {modalMode === "edit" && (
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: S.muted }}>Lý do thay đổi hồ sơ</label>
+              <input 
+                type="text" 
+                value={editReason} 
+                onChange={e => setEditReason(e.target.value)}
+                placeholder="Nhập lý do thay đổi..."
+                className="w-full text-sm px-3 py-2 rounded-lg outline-none"
+                style={{ background: S.bg, border: `1px solid ${S.border}`, color: S.text }}
+              />
+            </div>
+          )}
+
+          {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
+
+          <div className="flex justify-end gap-2.5 pt-4 border-t" style={{ borderColor: S.border }}>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85"
+              style={{ background: S.border, color: S.text }}
+              disabled={saving}
+            >
+              Hủy
+            </button>
+            <button 
+              type="submit" 
+              className="px-5 py-2.5 rounded-lg text-xs font-bold transition-opacity hover:opacity-85 text-white flex items-center gap-1.5"
+              style={{ background: S.green }}
+              disabled={saving}
+            >
+              {saving ? "Đang lưu..." : "Lưu"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
