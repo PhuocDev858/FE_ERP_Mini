@@ -23,12 +23,12 @@ type View =
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
 const createS = (dark: boolean) => ({
-  bg:      dark ? "#0B1120"  : "#F1F5F9",
+  bg:      dark ? "#0B1120"  : "#E2E8F0",
   sidebar: dark ? "#0D1220"  : "#FFFFFF",
   card:    dark ? "#111827"  : "#FFFFFF",
-  border:  dark ? "#1F2937"  : "#E2E8F0",
-  muted:   dark ? "#64748B"  : "#94A3B8",
-  sub:     dark ? "#94A3B8"  : "#64748B",
+  border:  dark ? "#1F2937"  : "#CBD5E1",
+  muted:   dark ? "#64748B"  : "#475569",
+  sub:     dark ? "#94A3B8"  : "#334155",
   text:    dark ? "#E2E8F0"  : "#0F172A",
   green:   dark ? "#10B981"  : "#059669",
   amber:   dark ? "#F59E0B"  : "#D97706",
