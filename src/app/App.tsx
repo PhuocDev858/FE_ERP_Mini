@@ -770,12 +770,12 @@ function Sidebar({ activeView, onNavigate }: { activeView: View; onNavigate: (v:
           return (
             <div key={mod.id}>
               <button onClick={() => toggle(mod.id)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150"
-                style={{ color: isActive ? S.text : S.sub }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 font-semibold"
+                style={{ color: isActive ? S.text : (S.isDark ? "rgba(255,255,255,0.85)" : "#0F172A") }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = hoverStyle}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}>
                 <mod.icon size={15} />
-                <span className="flex-1 text-left font-medium">{mod.label}</span>
+                <span className="flex-1 text-left font-semibold">{mod.label}</span>
                 <span style={{ color: S.muted }}>
                   {isOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                 </span>
@@ -789,10 +789,10 @@ function Sidebar({ activeView, onNavigate }: { activeView: View; onNavigate: (v:
                       : v.label;
                     return (
                       <button key={v.id} onClick={() => onNavigate(v.id as View)}
-                        className="w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-all duration-150"
-                        style={active ? { color: S.green, background: `${S.green}18` } : { color: S.muted }}
-                        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = S.sub; }}
-                        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = S.muted; }}>
+                        className="w-full text-left px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all duration-150"
+                        style={active ? { color: S.green, background: `${S.green}18`, fontWeight: 700 } : { color: S.isDark ? "rgba(255,255,255,0.8)" : "#0F172A" }}
+                        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = S.green; }}
+                        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = S.isDark ? "rgba(255,255,255,0.8)" : "#0F172A"; }}>
                         {displayLabel}
                       </button>
                     );
